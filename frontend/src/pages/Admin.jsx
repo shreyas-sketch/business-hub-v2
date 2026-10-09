@@ -9,7 +9,7 @@ const TIERS = ["free", "lite", "program", "running", "growth", "office"];
 const pct = (n, d) => (d ? `${Math.round((n / d) * 100)}%` : "—");
 
 const SOURCE_NAMES = { direct: "Came directly", cohort: "Workshop join link", badge: "Website badge", invite: "Invite link", showcase: "Showcase" };
-const SOURCE_LABEL = { purchase: "paid", subscription: "Membership", trial: "trial", admin: "set" };
+const SOURCE_LABEL = { purchase: "paid", subscription: "Membership", trial: "trial", admin: "set", hub_admin: "admin number" };
 
 export default function Admin() {
   const { toast, me } = useHub();

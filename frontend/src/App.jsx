@@ -84,6 +84,65 @@ const PAGES = [
   ["/office", Office, "agentic_office", "manager"],
 ];
 
+const NAV_KEY = "ah_nav_open";
+const readNav = () => { try { return JSON.parse(localStorage.getItem(NAV_KEY) || "{}"); } catch { return {}; } };
+
+/** The menu: groups fold, usable pages first, locked ones tucked under "N more", and the current page's group always open. */
+function Nav({ me, pathname }) {
+  const [saved, setSaved] = useState(readNav);
+  const toggle = (key, value) => setSaved((cur) => {
+    const next = { ...cur, [key]: value };
+    try { localStorage.setItem(NAV_KEY, JSON.stringify(next)); } catch { /* private mode: just this visit */ }
+    return next;
+  });
+  const isOn = (path) => (path === "/admin" ? pathname === "/admin" : pathname === path || pathname.startsWith(path + "/"));
+  const admin = me.user.role === "admin" ? [{ group: "Admin", items: [
+    { key: "a-pulse", label: "Pulse", path: "/admin" }, { key: "a-features", label: "Features & plans", path: "/admin/features" },
+    { key: "a-calls", label: "Manage member calls", path: "/admin/calls" }, { key: "a-rec", label: "Manage recordings", path: "/admin/recordings" }] }] : [];
+  const groups = [...admin, ...(me.menu || [])];
+  const usable = groups.reduce((n, g) => n + g.items.filter((it) => !it.locked).length, 0);
+  const crowded = usable > 24; // with most of the menu unlocked, start with only the current group and Start open
+
+  return (
+    <nav className="nav" aria-label="Main">
+      {groups.map(({ group, items }, gi) => {
+        const open_ = items.filter((it) => !it.locked);
+        const locked = items.filter((it) => it.locked);
+        const here = items.some((it) => isOn(it.path));
+        const byDefault = group === "Admin" || (crowded ? here || group === "Start" : open_.length > 0 || here);
+        const expanded = here || (saved[group] ?? byDefault);
+        const showLocked = saved[`${group}:locked`] ?? false;
+        const link = (it) => (
+          <NavLink key={it.key} to={it.path} end={it.path === "/admin"} className={({ isActive }) => `${isActive ? "on" : ""} ${it.locked ? "locked" : ""}`}>
+            <span>{it.label}</span>
+            {it.locked ? <span className="tier" title={`Unlocks with ${it.tier_name}`}>{it.tier_short || it.tier_name.split(" ")[0]}</span>
+              : it.path === "/approvals" && me.approvals_waiting ? <span className="count" aria-label={`${me.approvals_waiting} waiting`}>{me.approvals_waiting}</span>
+              : it.path === "/tasks" && me.my_open_tasks ? <span className="count" aria-label={`${me.my_open_tasks} open`}>{me.my_open_tasks}</span>
+              : it.path === "/leads" && me.progress.first_lead ? <span className="dot" aria-hidden="true" /> : null}
+          </NavLink>
+        );
+        return (
+          <div key={group} className={`nav-group ${expanded ? "open" : ""}`}>
+            <button type="button" className="group" aria-expanded={expanded} onClick={() => !here && toggle(group, !expanded)} disabled={here}>
+              <span>{group}</span>
+              <span className="meta">{!expanded && <span className="n">{open_.length || items.length}</span>}{!here && <i className="chev" aria-hidden="true" />}</span>
+            </button>
+            {expanded && (
+              <div className="items">
+                {open_.map(link)}
+                {locked.length > 0 && (open_.length === 0 || showLocked || locked.some((it) => isOn(it.path))
+                  ? <>{locked.map(link)}{open_.length > 0 && <button type="button" className="more" onClick={() => toggle(`${group}:locked`, false)}>Hide locked</button>}</>
+                  : <button type="button" className="more" onClick={() => toggle(`${group}:locked`, true)}>+ {locked.length} more on bigger plans</button>)}
+              </div>
+            )}
+            {gi === admin.length - 1 && admin.length > 0 && <hr className="nav-rule" />}
+          </div>
+        );
+      })}
+    </nav>
+  );
+}
+
 function Shell({ me, children }) {
   const [open, setOpen] = useState(false);
   const loc = useLocation();
@@ -102,24 +161,7 @@ function Shell({ me, children }) {
           <div className="mark"><b>{me.business_name || "Your business"}</b><span>{me.workspace.is_team ? `${me.user.name || "Team"} · ${me.workspace.role}` : me.program.name}</span></div>
           {open && <button className="btn sm ghost" onClick={() => setOpen(false)}>Close</button>}
         </div>
-        <nav className="nav" aria-label="Main">
-          {me.user.role === "admin" && <><div className="group">Admin</div><NavLink to="/admin" end>Pulse</NavLink><NavLink to="/admin/features">Features &amp; plans</NavLink>
-            <NavLink to="/admin/calls">Member calls</NavLink><NavLink to="/admin/recordings">Recordings</NavLink></>}
-          {(me.menu || []).map(({ group, items }) => (
-            <React.Fragment key={group}>
-              <div className="group">{group}</div>
-              {items.map((it) => (
-                <NavLink key={it.key} to={it.path} className={({ isActive }) => `${isActive ? "on" : ""} ${it.locked ? "locked" : ""}`}>
-                  <span>{it.label}</span>
-                  {it.locked ? <span className="tier" title={`Unlocks with ${it.tier_name}`}>{it.tier_short || it.tier_name.split(" ")[0]}</span>
-                    : it.path === "/approvals" && me.approvals_waiting ? <span className="count" aria-label={`${me.approvals_waiting} waiting`}>{me.approvals_waiting}</span>
-                    : it.path === "/tasks" && me.my_open_tasks ? <span className="count" aria-label={`${me.my_open_tasks} open`}>{me.my_open_tasks}</span>
-                    : it.path === "/leads" && me.progress.first_lead ? <span className="muted">●</span> : null}
-                </NavLink>
-              ))}
-            </React.Fragment>
-          ))}
-        </nav>
+        <Nav me={me} pathname={loc.pathname} />
         <div className="foot">
           <div className="stack" style={{ gap: 6 }}>
             <span className="label">AI runs this month</span>

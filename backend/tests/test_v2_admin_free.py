@@ -9,7 +9,7 @@ import pytest
 from app import fetch, plans
 from app.config import settings
 from app.db import db
-from tests.conftest import PROFILE, go_live, new_owner
+from tests.conftest import PROFILE, go_live, login, new_owner
 
 ADMIN = "9999900000"
 
@@ -290,3 +290,20 @@ async def test_english_polisher_free_for_whatsapp_membership_for_letters(client)
     r = await c.post("/api/studio/polish", json={"text": "sir payment pending hai", "kind": "email", "tone": "firm"})
     assert r.status_code == 200 and r.json()["text"].startswith("Dear Sir/Madam") and r.json()["subject"]
     assert (await c.get("/api/outputs?kind=polish")).json()[0]["kind"] == "polish"
+
+
+async def test_admin_numbers_have_every_feature_unlocked(client):
+    from app import plans
+    from app.config import settings
+    await login(client, "+919999900000")
+    me = (await client.get("/api/me")).json()
+    assert me["user"]["role"] == "admin" and me["user"]["effective_plan"] == "office"
+    assert all(me["features"][k] for k, m in plans.META.items() if m["on"])
+    assert me["runs"]["allowance"] == plans.PLANS["office"]["runs"]
+    old = settings.admin_phones
+    object.__setattr__(settings, "admin_phones", ())
+    try:  # taken off the list: back to the plan on the account, at once
+        me = (await client.get("/api/me")).json()
+        assert me["user"]["effective_plan"] == "free"
+    finally:
+        object.__setattr__(settings, "admin_phones", old)

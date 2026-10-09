@@ -14,6 +14,7 @@ import os
 import time
 from datetime import datetime
 
+from .config import settings
 from .db import db, now
 
 TIERS = ["free", "lite", "program", "running", "growth", "office"]
@@ -230,6 +231,8 @@ def plan_sources(user: dict, at: datetime | None = None) -> dict:
     """Every place a plan can come from, and whether it is valid right now."""
     at = at or now()
     out = {"admin": user.get("plan", "free")}
+    if user.get("phone") in settings.admin_phones and not user.get("team_of"):
+        out["hub_admin"] = TIERS[-1]  # admin numbers (ADMIN_PHONES) have every feature unlocked, for as long as they're on the list
     trial = user.get("trial") or {}
     if _valid(trial.get("until"), at):
         out["trial"] = trial.get("plan", "free")
@@ -254,7 +257,7 @@ def plan_source(user: dict, at: datetime | None = None) -> str:
     """Where the plan in use comes from: purchase, subscription, trial or admin (the plan set on the account)."""
     sources = plan_sources(user, at)
     effective = max(sources.values(), key=rank)
-    return next((k for k in ("purchase", "subscription", "trial", "admin") if sources.get(k) == effective), "admin")
+    return next((k for k in ("hub_admin", "purchase", "subscription", "trial", "admin") if sources.get(k) == effective), "admin")
 
 
 # ───────────────────────── features ─────────────────────────

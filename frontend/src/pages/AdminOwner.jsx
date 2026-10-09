@@ -8,7 +8,7 @@ import "./admin.css";
 
 const TIERS = ["free", "lite", "program", "running", "growth", "office"];
 const rank = (t) => Math.max(TIERS.indexOf(t), 0);
-const SOURCE = { purchase: "paid once", subscription: "Membership subscription", trial: "invite trial", admin: "set by the team" };
+const SOURCE = { purchase: "paid once", subscription: "Membership subscription", trial: "invite trial", admin: "set by the team", hub_admin: "admin number — everything unlocked" };
 // WhatsApp: fields that only apply to one provider are hidden for the other.
 const META_ONLY = ["phone_number_id", "access_token", "app_secret", "language"];
 const AISENSY_ONLY = ["api_key", "project_id", "project_password"];
