@@ -10,6 +10,7 @@ import logging
 from datetime import datetime, timedelta
 
 from .. import plans
+from ..config import settings
 from ..db import db, now
 from . import runners  # noqa: F401  (attaches the built-in runners to the catalog)
 from .catalog import AGENTS, Spec, due_slot
@@ -78,7 +79,13 @@ async def candidate_owners() -> list[dict]:
         return [u async for u in db().users.find({"disabled": {"$ne": True}}) if not u.get("team_of")]
     q = {"disabled": {"$ne": True}, "$or": [{"plan": {"$in": PAID}}, {"access": {"$exists": True}}, {"sub": {"$exists": True}},
                                              {"trial.until": {"$gt": now()}}, {"grants": {"$exists": True}}]}
-    return [u async for u in db().users.find(q) if not u.get("team_of")]
+    owners = {u["_id"]: u async for u in db().users.find(q) if not u.get("team_of")}
+    # Admin numbers have every feature unlocked; their automations run once they've set up a business of their own,
+    # so an admin who only manages the hub gets no digests or weekly plans about an empty hub.
+    async for u in db().users.find({"disabled": {"$ne": True}, "phone": {"$in": list(settings.admin_phones)}}):
+        if not u.get("team_of") and u["_id"] not in owners and await db().businesses.find_one({"owner_id": u["_id"], "name": {"$nin": ["", None]}}, {"_id": 1}):
+            owners[u["_id"]] = u
+    return list(owners.values())
 
 
 async def run_slot(spec: Spec, owners: list[dict], slot: str, at: datetime) -> int:

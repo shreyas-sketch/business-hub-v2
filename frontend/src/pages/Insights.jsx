@@ -152,7 +152,7 @@ function InsightsInner() {
         ))}
       </div>
       {tab === "funnel" && <Funnel />}
-      {tab === "dashboard" && (me.features.dashboard ? <Dashboard /> : <Locked feature="dashboard" what="Weekly performance dashboard" />)}
+      {tab === "dashboard" && (me.features.funnel ? <Dashboard /> : <Locked feature="funnel" what="Weekly performance dashboard" />)}
     </Sheet>
   );
 }

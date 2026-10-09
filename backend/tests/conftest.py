@@ -16,6 +16,41 @@ from app.db import db  # noqa: E402
 from app.main import app  # noqa: E402
 
 
+# HUB_ADMIN_MODE=1: every owner a test puts on the top plan stays on Free and gets an admin number (ADMIN_PHONES)
+# instead, so the whole top-plan suite runs through the path admin numbers take ("everything unlocked").
+ADMIN_MODE = os.getenv("HUB_ADMIN_MODE") == "1"
+_REAL_HANDLE = httpx.ASGITransport.handle_async_request
+
+
+async def _admin_mode_handle(self, request):
+    import json as _json
+    import re as _re
+    from app.config import settings as _settings
+    m = _re.fullmatch(r"/api/admin/users/([^/]+)", request.url.path)
+    if request.method == "PATCH" and m:
+        body = _json.loads(request.content or b"{}")
+        if body.get("plan") == "office":
+            u = await db().users.find_one({"_id": m.group(1)}, {"phone": 1})
+            if u:
+                object.__setattr__(_settings, "admin_phones", tuple(_settings.admin_phones) + (u["phone"],))
+                body.pop("plan")
+                request = httpx.Request(request.method, request.url, headers={k: v for k, v in request.headers.items() if k.lower() != "content-length"},
+                                        content=_json.dumps(body).encode())
+    return await _REAL_HANDLE(self, request)
+
+
+if ADMIN_MODE:
+    httpx.ASGITransport.handle_async_request = _admin_mode_handle
+
+
+@pytest.fixture(autouse=True)
+def _reset_admin_numbers():
+    from app.config import settings as _settings
+    before = _settings.admin_phones
+    yield
+    object.__setattr__(_settings, "admin_phones", before)
+
+
 @pytest.fixture
 async def client():
     async with LifespanManager(app):

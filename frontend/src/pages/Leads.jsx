@@ -17,7 +17,7 @@ export default function Leads() {
   return (
     <Sheet kicker="Systems · Leads" id="SY-02" pillar="Systems" step={3} title={title}
       sub="Every inquiry from your website lands here, and you get a WhatsApp alert the moment it comes in.">
-      <Locked feature="lead_autoreply" what="Instant WhatsApp reply to every new lead" />
+      <Locked feature="whatsapp_ai" what="Instant AI reply to every new lead from your own WhatsApp number" />
       {leads && !leads.length && (
         <div className="empty">
           <h2>No leads yet.</h2>

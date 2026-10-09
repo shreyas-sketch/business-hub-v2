@@ -47,7 +47,7 @@ async def pulse(days: int = 7):
         upgrade_clicks[t] = upgrade_clicks.get(t, 0) + 1
     plan_mix = {t: 0 for t in plans.TIERS}
     trials = 0
-    async for u in d.users.find(owners, {"plan": 1, "trial": 1, "sub": 1, "access": 1}):
+    async for u in d.users.find(owners, {"plan": 1, "trial": 1, "sub": 1, "access": 1, "phone": 1}):
         plan_mix[plans.effective_plan(u)] += 1
         trials += plans.plan_source(u) == "trial"
     cohorts = []

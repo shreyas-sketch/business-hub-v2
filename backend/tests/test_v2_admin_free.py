@@ -307,3 +307,13 @@ async def test_admin_numbers_have_every_feature_unlocked(client):
         assert me["user"]["effective_plan"] == "free"
     finally:
         object.__setattr__(settings, "admin_phones", old)
+
+
+async def test_admin_numbers_automations_run_once_they_have_a_business(client):
+    from app.agents import scheduler
+    admin = await login(client, "+919999900000")
+    ids = lambda owners: {o["_id"] for o in owners}  # noqa: E731
+    me = (await client.get("/api/me")).json()["user"]["id"]
+    assert me not in ids(await scheduler.candidate_owners())  # managing the hub only: no automations about an empty hub
+    assert (await admin.put("/api/business", json=PROFILE)).status_code == 200
+    assert me in ids(await scheduler.candidate_owners())  # their own business set up: everything runs, like the top plan
