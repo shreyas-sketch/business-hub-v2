@@ -1,0 +1,54 @@
+/* Team, tasks, meetings and voice notes — small additions to the Blueprint system (aqua = the system acting). */
+
+/* Tick box for a task */
+.tick { width: 24px; height: 24px; flex: none; border: 1px solid var(--slate); background: var(--ink); cursor: pointer; padding: 0; position: relative; margin-top: 1px; }
+.tick:hover { border-color: var(--aqua); }
+.tick.on { background: var(--aqua); border-color: var(--aqua); }
+.tick.on::after { content: ""; position: absolute; left: 8px; top: 3px; width: 6px; height: 12px; border: solid var(--ink); border-width: 0 2px 2px 0; transform: rotate(45deg); }
+.tick:disabled { cursor: default; opacity: .45; }
+
+/* Task list */
+.task-list { display: grid; gap: 8px; }
+.task-row { display: grid; grid-template-columns: auto 1fr auto; gap: 14px; align-items: start; padding: 14px 16px; background: var(--ink-raised); border: 1px solid var(--ink-line); }
+.task-row.done .task-title { color: var(--grey); text-decoration: line-through; text-decoration-color: var(--slate); }
+.task-body { display: grid; gap: 6px; min-width: 0; }
+.task-title { font-weight: 500; overflow-wrap: anywhere; }
+.task-note { font-size: 13px; color: var(--grey); white-space: pre-wrap; overflow-wrap: anywhere; }
+.task-meta { display: flex; gap: 4px 14px; flex-wrap: wrap; font-size: 13px; color: var(--grey); }
+.task-meta .late { color: var(--paper); font-weight: 600; }
+.task-add { display: grid; grid-template-columns: 1fr 170px 200px auto; gap: 10px; align-items: end; }
+
+/* People picker */
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--ink-line); padding: 7px 12px; border-radius: 999px; font-size: 13px; cursor: pointer; color: var(--grey); background: var(--ink); }
+.chip input { accent-color: var(--aqua); margin: 0; }
+.chip.on { border-color: var(--aqua-deep); color: var(--paper); }
+
+/* Meeting agenda */
+.agenda { display: grid; gap: 10px; }
+.agenda-item { display: grid; grid-template-columns: 34px 1fr; gap: 6px 14px; border: 1px solid var(--ink-line); background: var(--ink); padding: 14px 16px; }
+.agenda-item .n { font: 300 26px/1 var(--head); color: var(--aqua-deep); grid-row: span 3; }
+.agenda-item h3 { font-size: 16px; }
+.agenda-item .why { font-size: 13px; color: var(--grey); max-width: 70ch; }
+.agenda-item .read { white-space: pre-wrap; overflow-wrap: anywhere; }
+.save-state { font-size: 12px; color: var(--grey); letter-spacing: .04em; }
+
+/* Roles explainer */
+.role-card { display: grid; gap: 6px; padding: 16px 18px; border: 1px solid var(--ink-line); background: var(--ink); }
+
+/* Voice note */
+.voice { border: 1px dashed var(--ink-line); padding: 14px 16px; display: grid; gap: 10px; }
+.rec-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--aqua); display: inline-block; animation: rec-pulse 1.2s ease-in-out infinite; }
+@keyframes rec-pulse { 50% { opacity: .25; } }
+.file-pick { position: relative; overflow: hidden; }
+.file-pick input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.file-pick:focus-within { outline: 1px solid var(--aqua); outline-offset: 2px; }
+.file-pick.off { opacity: .45; pointer-events: none; }
+
+@media (max-width: 900px) {
+  .task-row { grid-template-columns: auto 1fr; }
+  .task-row .task-actions { grid-column: 2; }
+  .task-add { grid-template-columns: 1fr; }
+  .agenda-item { grid-template-columns: 1fr; }
+  .agenda-item .n { grid-row: auto; font-size: 20px; }
+}

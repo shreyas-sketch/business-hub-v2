@@ -1,0 +1,50 @@
+/* WhatsApp chats, Company Brain, money campaigns, the Sales Training Gym and the AI workforce.
+   Small additions to the Blueprint system: aqua = the system acting, amber = money only. */
+
+/* ── Chats: list | conversation (one pane at a time on phones) ── */
+.chat-split { display: grid; grid-template-columns: minmax(240px, 330px) minmax(0, 1fr); gap: 16px; align-items: start; }
+.chat-list { display: grid; gap: 10px; min-width: 0; }
+.chat-list .listbox { max-height: 72vh; overflow-y: auto; scrollbar-width: thin; }
+.chat-list .listbox button { min-width: 0; }
+.chat-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-width: 0; }
+.chat-name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.chat-last { color: var(--grey); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-unread { flex: none; min-width: 20px; padding: 2px 7px; border-radius: 999px; background: var(--aqua); color: var(--ink); font: 600 11px/1.3 var(--body); text-align: center; }
+.chat-pane { min-width: 0; display: grid; gap: 12px; }
+.chat-msgs { max-height: 58vh; overflow-y: auto; padding: 4px 2px; scrollbar-width: thin; }
+.chat-msgs .bubble { overflow-wrap: anywhere; }
+.ai-tag { color: var(--aqua); font-weight: 600; letter-spacing: .08em; }
+.chat-back { display: none; justify-self: start; }
+
+/* ── Score bars (Gym) ── */
+.score-rows { display: grid; gap: 14px; }
+.score-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; align-items: center; }
+.score-row .bar, .score-row .note { grid-column: 1 / -1; }
+.g-details summary { cursor: pointer; color: var(--aqua); font-size: 13px; }
+.g-details[open] summary { margin-bottom: 10px; }
+
+/* ── Checkboxes (campaign audience) ── */
+.g-checks { display: flex; flex-wrap: wrap; gap: 8px; }
+.g-check { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--ink-line); padding: 8px 12px; font-size: 13px; color: var(--grey); background: var(--ink); cursor: pointer; }
+.g-check.on { border-color: var(--aqua-deep); color: var(--paper); }
+.g-check input { accent-color: var(--aqua); margin: 0; flex: none; }
+.g-inline { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.g-inline .input { width: 96px; }
+
+/* ── Workforce role cards ── */
+.wf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 290px), 1fr)); gap: 14px; }
+.wf-role { border: 1px solid var(--ink-line); background: var(--ink); padding: 16px 18px; display: grid; gap: 10px; align-content: start; min-width: 0; }
+.wf-role.on { border-color: var(--aqua-deep); background: var(--ink-raised); }
+.wf-role.wide { grid-column: 1 / -1; }
+.wf-meta { display: grid; gap: 4px; font-size: 13px; color: var(--grey); }
+.wf-meta b { color: var(--paper); font-weight: 500; }
+.wf-names { display: flex; flex-wrap: wrap; gap: 6px; }
+
+@media (max-width: 900px) {
+  .chat-split { grid-template-columns: 1fr; }
+  .chat-split.has-open .chat-list { display: none; }
+  .chat-split:not(.has-open) .chat-pane { display: none; }
+  .chat-back { display: inline-flex; }
+  .chat-msgs { max-height: 62vh; }
+  .chat-list .listbox { max-height: none; overflow: visible; }
+}

@@ -1,0 +1,174 @@
+"""Admin: Pulse (activation → stickiness → referral), owners, workshop cohorts."""
+import re
+from datetime import timedelta
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
+
+from .. import plans
+from ..config import settings
+from ..db import db, now, public
+from ..security import require_admin
+from ..services import notify, track
+
+router = APIRouter(prefix="/api/admin", dependencies=[Depends(require_admin)])
+
+
+async def _count(coll: str, q: dict) -> int:
+    return await db()[coll].count_documents(q)
+
+
+@router.get("/pulse")
+async def pulse(days: int = 7):
+    days = max(1, min(days, 90))
+    since = now() - timedelta(days=days)
+    d = db()
+    owners = {"team_of": {"$exists": False}}  # team members log in to someone else's hub; they are not owners
+    users_total = await _count("users", owners)
+    users_at_start = await _count("users", {**owners, "created_at": {"$lt": since}})
+    signups = await _count("users", {**owners, "created_at": {"$gte": since}})
+    referred = await _count("users", {**owners, "created_at": {"$gte": since}, "referred_by": {"$exists": True}})
+    by_source = {}
+    async for e in d.events.find({"type": "signup", "at": {"$gte": since}}, {"meta": 1}):
+        src = (e.get("meta") or {}).get("src") or "direct"
+        by_source[src] = by_source.get(src, 0) + 1
+    visits = {"invite": 0, "badge": 0, "showcase": 0}
+    async for e in d.events.find({"type": "invite_visit", "at": {"$gte": since}}, {"meta": 1}):
+        src = (e.get("meta") or {}).get("src", "invite")
+        visits[src] = visits.get(src, 0) + 1
+    profile = await _count("businesses", {"industry": {"$exists": True}})
+    brand = await _count("businesses", {"brand.message": {"$exists": True}})
+    live = await _count("sites", {"first_live_at": {"$exists": True}})
+    with_lead = len(await d.leads.distinct("owner_id"))
+    runs_window = [r async for r in d.runs.find({"created_at": {"$gte": since}, "status": "done"}, {"cost_inr": 1, "kind": 1})]
+    upgrade_clicks = {}
+    async for e in d.events.find({"type": "upgrade_click", "at": {"$gte": since}}, {"meta": 1}):
+        t = (e.get("meta") or {}).get("tier", "lite")
+        upgrade_clicks[t] = upgrade_clicks.get(t, 0) + 1
+    plan_mix = {t: 0 for t in plans.TIERS}
+    trials = 0
+    async for u in d.users.find(owners, {"plan": 1, "trial": 1, "sub": 1, "access": 1}):
+        plan_mix[plans.effective_plan(u)] += 1
+        trials += plans.plan_source(u) == "trial"
+    cohorts = []
+    async for c in d.cohorts.find().sort("created_at", -1).limit(20):
+        ids = [u["_id"] async for u in d.users.find({"cohort": c["code"]}, {"_id": 1})]
+        cohorts.append({"code": c["code"], "name": c.get("name", ""), "workshop_date": c.get("workshop_date"),
+                        "signups": len(ids), "sites_live": await _count("sites", {"owner_id": {"$in": ids}, "first_live_at": {"$exists": True}}),
+                        "brought_in": await _count("users", {"referred_by": {"$in": ids}})})
+    return {
+        "days": days,
+        "totals": {"owners": users_total, "signups": signups, "referred_signups": referred,
+                   "leads": await _count("leads", {"created_at": {"$gte": since}}), "leads_all_time": await _count("leads", {})},
+        "activation": {"owners": users_total, "profile": profile, "brand": brand, "site_live": live, "first_lead": with_lead},
+        "viral": {"k": round(referred / users_at_start, 2) if users_at_start else None, "visits": visits, "by_source": by_source,
+                  "rewards": await _count("referral_rewards", {"at": {"$gte": since}}),
+                  "definition": f"K = owners who joined through a member's invite link or website badge in the last {days} days ÷ owners who existed at the start of that period."},
+        "ai": {"runs": len(runs_window), "cost_inr": round(sum(r.get("cost_inr", 0) or 0 for r in runs_window), 2),
+               "limit_hits": await _count("events", {"type": "limit_hit", "at": {"$gte": since}})},
+        "revenue_intent": {"upgrade_clicks": upgrade_clicks},
+        "plans": {"mix": plan_mix, "trials": trials},
+        "cohorts": cohorts,
+    }
+
+
+@router.get("/users")
+async def users(q: str = "", limit: int = 100):
+    query = {}
+    if q:
+        safe = re.escape(q.strip()[:40])
+        biz_ids = [b["owner_id"] async for b in db().businesses.find({"name": {"$regex": safe, "$options": "i"}}, {"owner_id": 1})]
+        query = {"$or": [{"phone": {"$regex": safe}}, {"_id": {"$in": biz_ids}}, {"cohort": q.strip().upper()}]}
+    found = [u async for u in db().users.find(query).sort("created_at", -1).limit(max(1, min(limit, 500)))]
+    ids = [u["_id"] for u in found]
+    # One query per collection (not per owner), so the list stays fast when the app and database are far apart
+    names = {b["owner_id"]: b.get("name", "") async for b in db().businesses.find({"owner_id": {"$in": ids}}, {"owner_id": 1, "name": 1})}
+    sites = {s["owner_id"]: s async for s in db().sites.find({"owner_id": {"$in": ids}}, {"owner_id": 1, "status": 1, "slug": 1})}
+    leads = {g["_id"]: g["n"] async for g in db().leads.aggregate([{"$match": {"owner_id": {"$in": ids}}}, {"$group": {"_id": "$owner_id", "n": {"$sum": 1}}}])}
+    brought = {g["_id"]: g["n"] async for g in db().users.aggregate([{"$match": {"referred_by": {"$in": ids}}}, {"$group": {"_id": "$referred_by", "n": {"$sum": 1}}}])}
+    team_owner_ids = list({u["team_of"] for u in found if u.get("team_of")})
+    team_names = {b["owner_id"]: b.get("name", "") async for b in db().businesses.find({"owner_id": {"$in": team_owner_ids}}, {"owner_id": 1, "name": 1})}
+    out = []
+    for u in found:
+        s = sites.get(u["_id"], {})
+        out.append({"id": u["_id"], "phone": u["phone"], "business": names.get(u["_id"], ""), "cohort": u.get("cohort"),
+                    "plan": u.get("plan", "free"), "effective_plan": plans.effective_plan(u), "plan_source": plans.plan_source(u),
+                    "bonus_runs": u.get("bonus_runs", 0),
+                    "site": s.get("status"), "slug": s.get("slug"), "leads": leads.get(u["_id"], 0),
+                    "referred": bool(u.get("referred_by")), "brought_in": brought.get(u["_id"], 0), "disabled": bool(u.get("disabled")),
+                    "role": u.get("role", "owner"), "created_at": u["created_at"].isoformat(),
+                    "team": {"of": team_names.get(u["team_of"], ""), "role": u.get("team_role", "staff"), "name": u.get("name", "")} if u.get("team_of") else None,
+                    "grants": [k for k, v in (u.get("grants") or {}).items() if plans.granted(u, k)]})
+    return out
+
+
+@router.get("/owners/{user_id}")
+async def owner_detail(user_id: str):
+    """One owner on a page: plan and where it comes from, extras the admin gave, website, and (Growth Mentorship and up)
+    the setup and connections the team looks after."""
+    u = await db().users.find_one({"_id": user_id})
+    if not u or u.get("team_of"):
+        raise HTTPException(404, "Owner not found")
+    from ..sites import site_url
+    b = await db().businesses.find_one({"owner_id": user_id}) or {}
+    s = await db().sites.find_one({"owner_id": user_id}, {"slug": 1, "status": 1, "domain": 1}) or {}
+    access = {t: v.isoformat() for t, v in (u.get("access") or {}).items() if hasattr(v, "isoformat")}
+    grants = [{"feature": k, "label": plans.label_of(k), "until": v.isoformat(), "active": plans.granted(u, k)}
+              for k, v in (u.get("grants") or {}).items() if hasattr(v, "isoformat") and k in plans.META]
+    team = await db().users.count_documents({"team_of": user_id})
+    return {"id": u["_id"], "phone": u["phone"], "name": u.get("name", ""), "business": b.get("name", ""), "city": b.get("city", ""),
+            "industry": b.get("industry", ""), "plan": u.get("plan", "free"), "effective_plan": plans.effective_plan(u),
+            "plan_name": plans.PLANS[plans.effective_plan(u)]["name"], "plan_source": plans.plan_source(u), "access": access,
+            "grants": grants, "disabled": bool(u.get("disabled")), "bonus_runs": u.get("bonus_runs", 0), "cohort": u.get("cohort"),
+            "site": {"slug": s.get("slug"), "status": s.get("status"), "url": site_url(s["slug"]) if s.get("slug") else None,
+                     "domain": (s.get("domain") or {}).get("name")} if s else None,
+            "team": team, "created_at": u["created_at"].isoformat(),
+            "features": [{"key": k, "label": m["label"], "tier": m["tier"], "has": plans.has(u, k)} for k, m in plans.META.items() if m["on"]]}
+
+
+class UserPatch(BaseModel):
+    plan: str | None = Field(default=None, pattern="^(free|lite|program|running|growth|office)$")
+    add_bonus_runs: int | None = Field(default=None, ge=-1000, le=1000)
+    disabled: bool | None = None
+
+
+@router.patch("/users/{user_id}")
+async def patch_user(user_id: str, body: UserPatch, admin: dict = Depends(require_admin)):
+    user = await db().users.find_one({"_id": user_id})
+    if not user:
+        raise HTTPException(404, "Owner not found")
+    update: dict = {}
+    if body.plan:
+        update.setdefault("$set", {})["plan"] = body.plan
+    if body.disabled is not None:
+        update.setdefault("$set", {})["disabled"] = body.disabled
+        update.setdefault("$inc", {})["session_version"] = 1
+    if body.add_bonus_runs:
+        update.setdefault("$inc", {})["bonus_runs"] = body.add_bonus_runs
+    if update:
+        await db().users.update_one({"_id": user_id}, update)
+        await track("admin_change", user_id, by=admin["_id"], **body.model_dump(exclude_none=True))
+    if body.plan and body.plan != user.get("plan", "free"):
+        await notify(user_id, f"Your hub is now on {plans.PLANS[body.plan]['name']}.")
+    return {"ok": True}
+
+
+class CohortIn(BaseModel):
+    code: str = Field(min_length=3, max_length=40, pattern=r"^[A-Za-z0-9-]+$")
+    name: str = Field(default="", max_length=120)
+    workshop_date: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+
+
+@router.get("/cohorts")
+async def list_cohorts():
+    return [{**public(c), "join_link": f"{settings.app_url}/join?c={c['code']}"} async for c in db().cohorts.find().sort("created_at", -1)]
+
+
+@router.post("/cohorts")
+async def create_cohort(body: CohortIn):
+    code = body.code.upper()
+    try:
+        await db().cohorts.insert_one({"_id": code, "code": code, "name": body.name, "workshop_date": body.workshop_date, "created_at": now()})
+    except Exception:
+        raise HTTPException(409, "A cohort with this code already exists")
+    return {"code": code, "join_link": f"{settings.app_url}/join?c={code}"}

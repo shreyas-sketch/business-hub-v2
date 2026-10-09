@@ -1,0 +1,86 @@
+/* Free-plan pages: getting started, the Business Score, AI Writer, the launch kit and Home. */
+
+/* Three ways to fill the Business Brain */
+.fr-ways { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.fr-way { text-align: left; background: var(--ink); border: 1px solid var(--ink-line); color: var(--paper); padding: 18px; cursor: pointer;
+  display: grid; gap: 8px; align-content: start; font: inherit; }
+.fr-way:hover { border-color: var(--slate); }
+.fr-way.on { border-color: var(--aqua-deep); box-shadow: inset 0 2px 0 var(--aqua); }
+.fr-way b { font: 500 18px/1.2 var(--head); }
+
+/* Website checks: a small pass / not yet list */
+.fr-checks { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 16px; }
+.fr-checks li { display: flex; gap: 8px; align-items: baseline; font-size: 13px; }
+.fr-checks .ok { color: var(--aqua); }
+.fr-checks .no { color: var(--grey); }
+.fr-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.fr-logo { width: 40px; height: 40px; object-fit: contain; background: #fff; border: 1px solid var(--ink-line); }
+.fr-swatch { width: 24px; height: 24px; border: 1px solid var(--ink-line); display: inline-block; }
+
+/* Voice recorder */
+.fr-voice { border: 1px dashed var(--ink-line); padding: 14px 16px; display: grid; gap: 10px; }
+.fr-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--aqua); display: inline-block; animation: fr-pulse 1.2s ease-in-out infinite; }
+@keyframes fr-pulse { 50% { opacity: .25; } }
+.fr-pick { position: relative; overflow: hidden; }
+.fr-pick input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.fr-pick:focus-within { outline: 1px solid var(--aqua); outline-offset: 2px; }
+.fr-pick.off { opacity: .45; pointer-events: none; }
+
+/* Yes / partly / no and other small choices */
+.fr-seg { display: inline-flex; border: 1px solid var(--ink-line); border-radius: 999px; overflow: hidden; flex: none; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+.fr-seg::-webkit-scrollbar { display: none; }
+.fr-seg button { flex: none; white-space: nowrap; background: none; border: 0; border-right: 1px solid var(--ink-line); color: var(--grey); padding: 8px 14px; cursor: pointer;
+  font: 500 11px/1 var(--body); letter-spacing: .1em; text-transform: uppercase; }
+.fr-seg button:last-child { border-right: 0; }
+.fr-seg button[aria-pressed="true"] { background: var(--aqua); color: var(--ink); }
+.fr-seg button:disabled { color: var(--slate); cursor: not-allowed; }
+.fr-q { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 16px; align-items: center; padding: 14px 0; border-top: 1px solid var(--ink-line); }
+.fr-q:first-child { border-top: 0; }
+
+/* Score */
+.fr-score { display: flex; align-items: baseline; gap: 6px; }
+.fr-score .of { color: var(--grey); font: 400 20px/1 var(--head); }
+.fr-fix { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 14px; padding: 12px 0; border-top: 1px solid var(--ink-line); }
+.fr-fix:first-child { border-top: 0; }
+.fr-fix .n { font: 300 28px/1 var(--head); color: var(--aqua-deep); grid-row: span 2; }
+
+/* Launch kit */
+.fr-kit { display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: 20px; align-items: start; }
+.fr-poster { width: 100%; max-width: 300px; aspect-ratio: 9 / 16; height: auto; border: 1px solid var(--ink-line); display: block; background: var(--ink-raised); }
+.fr-card-frame { width: 100%; max-width: 400px; height: 600px; border: 1px solid var(--ink-line); background: #fff; display: block; }
+
+/* The A5 QR stand: sized in em, so the same markup is a small preview on screen and 148 × 210 mm on paper */
+.fr-stand { font-size: clamp(14px, 4.6vw, 20px); width: 14.8em; height: 21em; background: #fff; color: #0A1826; display: flex; flex-direction: column;
+  align-items: center; text-align: center; padding: 1.2em 1em 0; gap: .45em; overflow: hidden; border: 1px solid var(--ink-line);
+  -webkit-print-color-adjust: exact; print-color-adjust: exact; font-family: var(--body); }
+.fr-stand .nm { font: 500 1.05em/1.15 var(--head); }
+.fr-stand .msg { font-size: .5em; line-height: 1.35; color: #324251; max-width: 26em; }
+.fr-stand .scan { font: 500 .95em/1.1 var(--head); margin-top: .2em; }
+.fr-stand img { width: 8.6em; height: 8.6em; image-rendering: pixelated; }
+.fr-stand .wa { font-size: .55em; line-height: 1.4; }
+.fr-stand .url { font-size: .5em; letter-spacing: .04em; color: #324251; }
+.fr-stand .strip { margin-top: auto; align-self: stretch; height: .55em; margin-left: -1em; margin-right: -1em; border: 0; }
+.fr-print-only { display: none; }
+
+/* Home: the 5-step checklist */
+.progress.five { grid-template-columns: repeat(5, 1fr); }
+
+@media (max-width: 900px) {
+  .fr-ways { grid-template-columns: 1fr; }
+  .fr-checks { grid-template-columns: 1fr; }
+  .fr-q { grid-template-columns: 1fr; }
+  .fr-seg button { padding: 8px 10px; }
+  .fr-kit { grid-template-columns: 1fr; }
+  .fr-card-frame { height: 520px; }
+  .progress.five { grid-template-columns: 1fr 1fr; }
+  .progress.five > * { border-right: 1px solid var(--ink-line); border-bottom: 1px solid var(--ink-line); }
+  .progress.five > *:nth-child(2n) { border-right: 0; }
+  .progress.five > *:last-child { grid-column: 1 / -1; border-right: 0; border-bottom: 0; }
+}
+
+@media print {
+  body.fr-printing { background: #fff !important; }
+  body.fr-printing #root { display: none !important; }
+  body.fr-printing .fr-print-only { display: block !important; }
+  body.fr-printing .fr-stand { font-size: 10mm; border: 0; }
+}

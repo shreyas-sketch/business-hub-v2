@@ -1,0 +1,106 @@
+/* Admin: features & plans, one owner, member calls — plus the plan cards on Plans & billing.
+   Blueprint rules: aqua = the system acting, amber = money only. */
+
+.admin-links { display: flex; gap: 8px; flex-wrap: wrap; }
+/* Form rows: a field with a hint must not stretch its neighbours. */
+.fields-top { align-items: start; }
+.back-link { font: 500 11px/1 var(--body); letter-spacing: .12em; text-transform: uppercase; }
+
+/* ── Plan board: one column per plan, one card per feature ── */
+/* The board needs more room than a normal page: on laptop screens it spreads into the page margins. */
+@media (min-width: 901px) and (max-width: 1600px) { .plan-board { margin-inline: calc(28px - var(--gutter)); } }
+.plan-board { display: grid; grid-template-columns: repeat(6, minmax(150px, 1fr)); gap: 10px; overflow-x: auto; padding-bottom: 8px; align-items: start; }
+.plan-col { background: var(--ink-raised); border: 1px solid var(--ink-line); padding: 8px; display: grid; gap: 8px; align-content: start; min-height: 220px; min-width: 0; }
+.plan-col.over { border-color: var(--aqua); box-shadow: inset 0 0 0 1px var(--aqua); }
+.plan-col-head { display: grid; gap: 3px; padding: 2px 2px 10px; border-bottom: 1px solid var(--ink-line); }
+.plan-col-head b { font: 500 15px/1.2 var(--head); }
+.plan-col-drop { font-size: 12px; color: var(--slate); text-align: center; padding: 18px 6px; border: 1px dashed var(--ink-line); }
+
+.fcard { background: var(--ink); border: 1px solid var(--ink-line); padding: 9px; display: grid; gap: 7px; min-width: 0; cursor: grab; }
+.fcard:hover { border-color: var(--slate); }
+.fcard.core { cursor: default; border-style: dashed; }
+.fcard.off { opacity: .6; }
+.fcard.dragging { opacity: .35; }
+.fcard-head { display: flex; gap: 6px; align-items: flex-start; }
+.fcard-head b { font-weight: 500; font-size: 14px; line-height: 1.3; overflow-wrap: anywhere; flex: 1; min-width: 0; }
+.fcard-grip { color: var(--slate); flex: none; line-height: 1.3; user-select: none; }
+.fcard-lock { flex: none; color: var(--grey); margin-top: 2px; }
+.fcard-meta { font-size: 12px; line-height: 1.4; color: var(--grey); overflow-wrap: anywhere; }
+.fcard-changed { font-size: 11px; line-height: 1.4; color: var(--aqua); }
+.fcard-switches { display: grid; gap: 7px; }
+.fcard-switches .switch { font-size: 10px; gap: 8px; letter-spacing: .08em; }
+.fcard-switches .switch input { width: 30px; height: 18px; }
+.fcard-switches .switch input::after { width: 10px; height: 10px; }
+.fcard-switches .switch input:checked::after { left: 15px; }
+.fcard-actions { display: flex; gap: 6px; align-items: center; }
+.fcard-actions .select { padding: 6px 8px; font-size: 12px; min-width: 0; flex: 1; }
+.fcard-actions .btn.sm { min-height: 30px; padding: 0 12px; }
+/* Drag works with a mouse; phones and tablets get the "Move to" list instead. */
+@media (hover: hover) and (pointer: fine) and (min-width: 901px) { .fcard-move { display: none; } }
+
+/* ── Menu order ── */
+.menu-groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 16px; align-items: start; }
+.menu-group { display: grid; gap: 8px; align-content: start; min-width: 0; }
+.menu-group .dropzone.over { background: rgba(63, 214, 201, .04); }
+.mrow { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 8px 8px 10px; border: 1px solid var(--ink-line); background: var(--ink-raised); cursor: grab; }
+.mrow.before { box-shadow: 0 -2px 0 var(--aqua); }
+.mrow.after { box-shadow: 0 2px 0 var(--aqua); }
+.mrow.dragging { opacity: .35; }
+.mrow.off .mrow-label { color: var(--grey); }
+.mrow-label { display: grid; gap: 2px; min-width: 0; }
+.mrow-label b { font-weight: 500; font-size: 14px; overflow-wrap: anywhere; }
+.mrow-label span { font-size: 12px; color: var(--grey); overflow-wrap: anywhere; }
+.updown { display: flex; gap: 4px; }
+.iconbtn { width: 34px; height: 34px; display: inline-grid; place-items: center; border: 1px solid var(--ink-line); background: var(--ink); color: var(--grey); cursor: pointer; border-radius: 2px; padding: 0; flex: none; }
+.iconbtn:hover:not(:disabled) { color: var(--aqua); border-color: var(--aqua-deep); }
+.iconbtn:disabled { opacity: .3; cursor: default; }
+.savebar { position: sticky; bottom: 12px; z-index: 5; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; background: var(--ink); border: 1px solid var(--aqua-deep); padding: 12px 16px; }
+
+/* ── Grants: owner picker ── */
+.picked { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; border: 1px solid var(--aqua-deep); padding: 10px 14px; }
+.listbox button .small { color: var(--grey); }
+
+/* ── One owner: setup steps ── */
+.steps { display: grid; gap: 8px; }
+.steps-month { font: 500 10px/1 var(--body); letter-spacing: .14em; text-transform: uppercase; color: var(--grey); padding-top: 8px; }
+.ad-step { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 12px; padding: 12px 14px; border: 1px solid var(--ink-line); background: var(--ink); align-items: start; }
+.ad-step.done { border-color: var(--aqua-shadow); }
+.ad-step input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--aqua); margin: 1px 0 0; cursor: pointer; }
+.step-body { display: grid; gap: 8px; min-width: 0; }
+.step-body > span { overflow-wrap: anywhere; }
+.step-note { display: flex; gap: 8px; align-items: center; }
+.step-note .input { flex: 1; min-width: 0; padding: 8px 10px; }
+
+/* ── One owner: connections ── */
+details.conn > summary { list-style: none; cursor: pointer; display: flex; justify-content: space-between; gap: 10px 12px; align-items: center; flex-wrap: wrap; }
+details.conn > summary::-webkit-details-marker { display: none; }
+details.conn > summary h3::after { content: " +"; color: var(--grey); font-weight: 400; }
+details.conn[open] > summary h3::after { content: " −"; }
+.conn-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; align-items: start; }
+.hook { display: flex; gap: 8px; align-items: center; }
+.hook .input { flex: 1; min-width: 0; }
+
+/* ── Member calls ── */
+.qgroup { display: grid; gap: 6px; padding-top: 12px; border-top: 1px solid var(--ink-line); }
+.qgroup p { overflow-wrap: anywhere; white-space: pre-wrap; }
+.call-when { font: 500 13px/1.3 var(--body); color: var(--aqua); }
+
+/* ── Plans & billing: what each plan adds ── */
+details.plan-unlocks > summary { list-style: none; cursor: pointer; display: inline-flex; gap: 8px; align-items: center; }
+details.plan-unlocks > summary::-webkit-details-marker { display: none; }
+details.plan-unlocks > summary::after { content: "+"; color: var(--aqua); font-size: 16px; line-height: 1; }
+details.plan-unlocks[open] > summary::after { content: "−"; }
+.unlock-groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 18px 24px; margin-top: 14px; }
+.unlock-group { display: grid; gap: 10px; align-content: start; min-width: 0; }
+.unlock-group > .label { color: var(--aqua-deep); }
+.unlock { display: grid; gap: 2px; padding-left: 12px; border-left: 1px solid var(--ink-line); }
+.unlock b { font-weight: 500; font-size: 14px; }
+.unlock span { font-size: 13px; line-height: 1.45; color: var(--grey); overflow-wrap: anywhere; }
+
+@media (max-width: 900px) {
+  .plan-board { grid-template-columns: minmax(0, 1fr); overflow: visible; }
+  .plan-col { min-height: 0; }
+  .menu-groups { grid-template-columns: minmax(0, 1fr); }
+  .conn-fields { grid-template-columns: minmax(0, 1fr); }
+  .unlock-groups { grid-template-columns: minmax(0, 1fr); }
+}

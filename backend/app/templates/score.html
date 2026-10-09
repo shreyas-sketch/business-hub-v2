@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ s.business or "This business" }} scored {{ s.score }}/100 — Business AI Score</title>
+<meta name="description" content="{{ s.business or 'A business' }} took the free Business AI Score. Get yours in 3 minutes.">
+<meta property="og:title" content="{{ s.business or 'This business' }} scored {{ s.score }}/100 on the Business AI Score">
+<meta property="og:description" content="Free in 3 minutes: your score out of 100 and the top 3 fixes for your business.">
+<meta property="og:url" content="{{ url }}">
+<meta name="robots" content="noindex">
+<style>
+*{box-sizing:border-box}body{margin:0;min-height:100vh;background:#0A1826;color:#EEF4F6;font:16px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans",Helvetica,Arial,sans-serif;display:grid;place-items:center;padding:28px 16px}
+.card{width:100%;max-width:460px;border:1px solid rgba(63,214,201,.35);border-radius:22px;padding:28px 24px;background:linear-gradient(180deg,#0F2234,#0A1826)}
+.kicker{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#3FD6C9}
+h1{font-size:26px;line-height:1.2;margin:8px 0 4px}.sub{color:#9FB3C2;margin:0 0 18px}
+.gauge{display:grid;place-items:center;margin:8px 0 16px}
+.gauge svg{width:180px;height:180px}
+.band{text-align:center;color:#3FD6C9;font-weight:600;margin-top:-6px}
+h2{font-size:14px;letter-spacing:.1em;text-transform:uppercase;color:#9FB3C2;margin:22px 0 8px}
+ol{margin:0;padding-left:20px}li{margin:8px 0}
+.btn{display:flex;justify-content:center;align-items:center;min-height:52px;border-radius:12px;font-weight:700;text-decoration:none;font-size:16px;background:#3FD6C9;color:#0A1826;margin-top:22px}
+.foot{color:#7E93A3;font-size:13px;text-align:center;margin-top:14px}
+</style>
+</head>
+<body>
+<div class="card">
+  <span class="kicker">Business AI Score</span>
+  <h1>{{ s.business or "This business" }}</h1>
+  <p class="sub">{% if s.city %}{{ s.city }} · {% endif %}checked on {{ s.at.strftime('%d %b %Y') }}</p>
+  <div class="gauge">
+    <svg viewBox="0 0 120 120" role="img" aria-label="Score {{ s.score }} out of 100">
+      <circle cx="60" cy="60" r="50" fill="none" stroke="#1C3448" stroke-width="12"/>
+      <circle cx="60" cy="60" r="50" fill="none" stroke="#3FD6C9" stroke-width="12" stroke-linecap="round"
+        stroke-dasharray="{{ (s.score * 3.1416) | round(1) }} 400" transform="rotate(-90 60 60)"/>
+      <text x="60" y="66" text-anchor="middle" font-size="30" font-weight="700" fill="#EEF4F6">{{ s.score }}</text>
+      <text x="60" y="84" text-anchor="middle" font-size="10" fill="#9FB3C2">out of 100</text>
+    </svg>
+  </div>
+  <div class="band">{{ s.band }}</div>
+  <h2>Working on next</h2>
+  <ol>{% for f in s.fixes %}<li>{{ f.about }}</li>{% endfor %}</ol>
+  <a class="btn" href="{{ join }}">Get your free Business AI Score</a>
+  <div class="foot">3 minutes · free · from {{ program }}</div>
+</div>
+</body>
+</html>

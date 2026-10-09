@@ -1,0 +1,265 @@
+"""
+Reading an owner's existing website, safely.
+
+The address comes from the owner, so it is treated as untrusted:
+- only http(s) on ports 80/443, no user:password@ addresses, at most 4 redirects (each checked again);
+- every host is resolved first and refused if any address is private, loopback, link-local, multicast or reserved
+  (no reaching into the hub's own network), and the connection is then made to that checked address — so a DNS answer
+  can't change between the check and the request;
+- at most 2 MB per page, HTML only, 10 seconds per request.
+Tests and a laptop may read private addresses (settings.fetch_private_ok).
+"""
+import asyncio
+import ipaddress
+import re
+import socket
+from dataclasses import dataclass, field
+from urllib.parse import urljoin, urlparse
+
+import httpx
+from bs4 import BeautifulSoup
+
+from .config import settings
+
+MAX_BYTES = 2_000_000
+TIMEOUT = 10
+UA = "Mozilla/5.0 (compatible; BusinessAIActionHub/1.0; +https://employz.ai)"
+
+
+class FetchError(Exception):
+    """A plain sentence the owner can act on."""
+
+
+@dataclass
+class Page:
+    url: str
+    html: str
+    https: bool
+    bytes: int
+
+
+def normalise_url(raw: str) -> str:
+    s = (raw or "").strip()
+    if not s:
+        raise FetchError("Enter your website address, like www.yourbusiness.in")
+    bad = FetchError("That doesn't look like a website address.")
+    if re.match(r"^https?://", s, re.I):
+        pass
+    elif re.match(r"^[a-z][a-z0-9+.-]*:(?!\d)", s, re.I):   # ftp:, javascript:, file:, mailto: … (but not "site.in:80")
+        raise bad
+    else:
+        s = "https://" + s
+    try:
+        u = urlparse(s)
+        port = u.port
+    except ValueError:
+        raise bad
+    if u.scheme.lower() not in ("http", "https") or not u.hostname or "@" in (u.netloc or "") or len(s) > 500 or any(c in s for c in " \t\r\n\\"):
+        raise bad
+    host = u.hostname.lower().rstrip(".")
+    try:
+        literal = ipaddress.ip_address(host)
+    except ValueError:
+        literal = None
+    if literal is not None and not settings.fetch_private_ok and _blocked(str(literal)):
+        raise FetchError("We can't read that address. Enter your public website, like www.yourbusiness.in")
+    local = settings.fetch_private_ok and (host == "localhost" or (literal is not None and _blocked(str(literal))))
+    if port not in (None, 80, 443) and not local:
+        raise bad
+    if "." not in host and not local and literal is None:
+        raise bad
+    return s
+
+
+async def _addresses(host: str) -> list[str]:
+    try:
+        infos = await asyncio.get_running_loop().getaddrinfo(host, None, type=socket.SOCK_STREAM)
+    except (socket.gaierror, UnicodeError):
+        raise FetchError("We couldn't find that website. Check the address and try again.")
+    return sorted({i[4][0] for i in infos})
+
+
+def _blocked(ip: str) -> bool:
+    a = ipaddress.ip_address(ip.split("%")[0])
+    if getattr(a, "ipv4_mapped", None):
+        a = a.ipv4_mapped
+    return a.is_private or a.is_loopback or a.is_link_local or a.is_multicast or a.is_reserved or a.is_unspecified
+
+
+async def _one(client: httpx.AsyncClient, url: str) -> httpx.Response:
+    u = urlparse(url)
+    host = u.hostname.lower().rstrip(".")
+    try:
+        literal = ipaddress.ip_address(host)
+        ips = [str(literal)]
+    except ValueError:
+        ips = await _addresses(host)
+    if not ips:
+        raise FetchError("We couldn't find that website. Check the address and try again.")
+    if not settings.fetch_private_ok and any(_blocked(ip) for ip in ips):
+        raise FetchError("We can't read that address. Enter your public website, like www.yourbusiness.in")
+    ip = ips[0]
+    netloc = f"[{ip}]" if ":" in ip else ip
+    if u.port:
+        netloc += f":{u.port}"
+    pinned = u._replace(netloc=netloc).geturl()
+    headers = {"Host": host + (f":{u.port}" if u.port else ""), "User-Agent": UA, "Accept": "text/html,application/xhtml+xml"}
+    req = client.build_request("GET", pinned, headers=headers, extensions={"sni_hostname": host} if u.scheme == "https" else {})
+    return await client.send(req, stream=True)
+
+
+async def fetch(raw_url: str, client: httpx.AsyncClient | None = None) -> Page:
+    url = normalise_url(raw_url)
+    own = client is None
+    client = client or httpx.AsyncClient(timeout=TIMEOUT, follow_redirects=False, verify=True)
+    try:
+        for _ in range(5):
+            try:
+                resp = await _one(client, url)
+            except httpx.ConnectError as e:
+                if url.startswith("https://") and "certificate" not in str(e).lower():
+                    url = "http://" + url[len("https://"):]  # some small-business sites still have no https
+                    continue
+                raise FetchError("We couldn't open that website. Check the address and try again.")
+            except httpx.HTTPError:
+                raise FetchError("That website took too long to answer. Try again, or fill the form instead.")
+            if resp.status_code in (301, 302, 303, 307, 308) and resp.headers.get("location"):
+                await resp.aclose()
+                url = normalise_url(urljoin(url, resp.headers["location"]))
+                continue
+            try:
+                if resp.status_code >= 400:
+                    raise FetchError("That website didn't open for us (it answered with an error). Try the home page address.")
+                ctype = resp.headers.get("content-type", "")
+                if "html" not in ctype.lower():
+                    raise FetchError("That address isn't a web page. Enter your website's home page.")
+                body = b""
+                async for chunk in resp.aiter_bytes():
+                    body += chunk
+                    if len(body) > MAX_BYTES:
+                        break
+            finally:
+                await resp.aclose()
+            return Page(url=url, html=body[:MAX_BYTES].decode(resp.encoding or "utf-8", errors="replace"),
+                        https=url.startswith("https://"), bytes=len(body))
+        raise FetchError("That website redirects too many times.")
+    finally:
+        if own:
+            await client.aclose()
+
+
+# ───────────────────────── reading a page ─────────────────────────
+PHONE = re.compile(r"(?:\+?91[\s-]?)?(?<!\d)[6-9]\d{4}[\s-]?\d{5}(?!\d)")
+EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
+
+
+@dataclass
+class Facts:
+    url: str
+    title: str = ""
+    description: str = ""
+    headings: list[str] = field(default_factory=list)
+    text: str = ""
+    phones: list[str] = field(default_factory=list)
+    emails: list[str] = field(default_factory=list)
+    whatsapp: str = ""
+    logo: str = ""
+    colour: str = ""
+    links: dict = field(default_factory=dict)
+    checks: dict = field(default_factory=dict)
+
+
+def _abs(base: str, href: str | None) -> str:
+    if not href:
+        return ""
+    u = urljoin(base, href.strip())
+    return u if u.startswith(("http://", "https://")) else ""
+
+
+def read(page: Page) -> Facts:
+    soup = BeautifulSoup(page.html, "html.parser")
+    f = Facts(url=page.url)
+    f.title = (soup.title.get_text(" ", strip=True) if soup.title else "")[:200]
+    desc = soup.find("meta", attrs={"name": re.compile("^description$", re.I)}) or soup.find("meta", attrs={"property": "og:description"})
+    f.description = (desc.get("content") or "")[:400] if desc else ""
+    theme = soup.find("meta", attrs={"name": "theme-color"})
+    if theme and re.fullmatch(r"#[0-9a-fA-F]{6}", (theme.get("content") or "").strip()):
+        f.colour = theme["content"].strip()
+    logo = None
+    for img in soup.find_all("img", limit=60):
+        hint = " ".join([img.get("alt") or "", " ".join(img.get("class") or []), img.get("src") or "", img.get("id") or ""]).lower()
+        if "logo" in hint:
+            logo = img.get("src") or img.get("data-src")
+            break
+    if not logo:
+        og = soup.find("meta", attrs={"property": "og:image"})
+        logo = og.get("content") if og else None
+    if not logo:
+        icon = soup.find("link", rel=lambda r: r and any(x in ("apple-touch-icon", "icon") for x in (r if isinstance(r, list) else [r])))
+        logo = icon.get("href") if icon else None
+    f.logo = _abs(page.url, logo)[:500]
+    for a in soup.find_all("a", href=True, limit=400):
+        href = a["href"].strip()
+        low = href.lower()
+        if "wa.me/" in low or "api.whatsapp.com" in low or "whatsapp://" in low:
+            m = re.search(r"(\d{10,13})", href)
+            if m and not f.whatsapp:
+                f.whatsapp = m.group(1)
+        elif low.startswith("tel:"):
+            f.phones.append(re.sub(r"[^\d+]", "", href[4:]))
+        elif low.startswith("mailto:"):
+            f.emails.append(href[7:].split("?")[0])
+        else:
+            text = a.get_text(" ", strip=True).lower()
+            for key in ("about", "service", "product", "contact"):
+                if key not in f.links and (key in low or key in text):
+                    u = _abs(page.url, href)
+                    if u and urlparse(u).hostname == urlparse(page.url).hostname:
+                        f.links[key] = u
+    for tag in soup(["script", "style", "noscript", "svg", "iframe"]):
+        tag.decompose()
+    f.headings = [h.get_text(" ", strip=True)[:140] for h in soup.find_all(["h1", "h2", "h3"], limit=30) if h.get_text(strip=True)]
+    body = soup.get_text("\n", strip=True)
+    f.text = re.sub(r"\n{2,}", "\n", body)[:12000]
+    f.phones += PHONE.findall(body)
+    f.emails += EMAIL.findall(body)
+    f.phones = list(dict.fromkeys(re.sub(r"\D", "", p)[-10:] for p in f.phones if len(re.sub(r"\D", "", p)) >= 10))[:5]
+    f.emails = list(dict.fromkeys(e.lower() for e in f.emails if not e.lower().endswith((".png", ".jpg", ".webp"))))[:3]
+    html_low = page.html.lower()
+    f.checks = {
+        "https": page.https,
+        "mobile": bool(soup.find("meta", attrs={"name": "viewport"})),
+        "title": bool(f.title) and bool(f.description),
+        "contact": bool(f.phones or f.whatsapp or f.emails),
+        "whatsapp": bool(f.whatsapp),
+        "form": bool(BeautifulSoup(page.html, "html.parser").find("form")),
+        "proof": any(w in html_low for w in ("testimonial", "review", "what our clients", "what our customers", "happy customers", "rated")),
+        "light": page.bytes < 1_500_000,
+    }
+    return f
+
+
+async def read_site(raw_url: str) -> Facts:
+    """The home page, plus about/services/contact pages when the home page links to them (text only, best effort)."""
+    home = await fetch(raw_url)
+    facts = read(home)
+    extra = []
+    for key in ("about", "service", "product", "contact"):
+        u = facts.links.get(key)
+        if not u or u == home.url:
+            continue
+        try:
+            sub = read(await fetch(u))
+        except FetchError:
+            continue
+        extra.append(f"--- {key.upper()} PAGE ---\n{sub.text[:4000]}")
+        facts.phones = list(dict.fromkeys(facts.phones + sub.phones))[:5]
+        facts.emails = list(dict.fromkeys(facts.emails + sub.emails))[:3]
+        facts.whatsapp = facts.whatsapp or sub.whatsapp
+        if sub.checks.get("form"):
+            facts.checks["form"] = True
+        facts.checks["contact"] = facts.checks["contact"] or sub.checks["contact"]
+        facts.checks["whatsapp"] = bool(facts.whatsapp)
+    if extra:
+        facts.text = (facts.text[:8000] + "\n" + "\n".join(extra))[:20000]
+    return facts

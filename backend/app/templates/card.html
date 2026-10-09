@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ name }} — contact card</title>
+<meta name="description" content="{{ brand }}">
+<meta property="og:title" content="{{ name }}">
+<meta property="og:description" content="{{ brand }}">
+<style>
+:root{--accent:{{ accent }}}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px 16px 80px;background:#eef1f4;font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans",Helvetica,Arial,sans-serif;color:#14171c}
+.card{width:100%;max-width:420px;background:#fff;border-radius:22px;overflow:hidden;box-shadow:0 18px 50px rgba(10,24,38,.16)}
+.top{background:var(--accent);color:#fff;padding:28px 24px 24px}
+.top img{height:48px;max-width:160px;object-fit:contain;background:#fff;border-radius:10px;padding:6px;margin-bottom:14px}
+.top h1{margin:0;font-size:26px;line-height:1.2;letter-spacing:-.01em}.top p{margin:8px 0 0;opacity:.92}
+.body{padding:20px 24px 24px;display:grid;gap:10px}
+.row{display:flex;gap:10px;align-items:center;color:#5b6370;font-size:15px;overflow-wrap:anywhere}
+.btn{display:flex;justify-content:center;align-items:center;gap:8px;min-height:48px;border-radius:12px;font-weight:700;text-decoration:none;font-size:16px}
+.solid{background:var(--accent);color:#fff}.wa{background:#25D366;color:#fff}.line{border:1.5px solid var(--accent);color:var(--accent)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.badge{position:fixed;left:50%;transform:translateX(-50%);bottom:16px;display:inline-flex;white-space:nowrap;align-items:center;gap:6px;background:#0A1826;color:#EEF4F6;border-radius:999px;padding:8px 12px;font-size:12px;text-decoration:none}
+.badge i{width:7px;height:7px;border-radius:50%;background:#3FD6C9}.badge b{color:#3FD6C9;font-weight:600}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="top">{% if logo %}<img src="{{ logo }}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">{% endif %}<h1>{{ name }}</h1>{% if brand %}<p>{{ brand }}</p>{% endif %}</div>
+  <div class="body">
+    {% if city %}<div class="row">📍 {{ city }}</div>{% endif %}
+    {% if phone %}<div class="row">📞 {{ phone }}</div>{% endif %}
+    {% if email %}<div class="row">✉️ {{ email }}</div>{% endif %}
+    {% if phone %}<a class="btn wa" href="{{ base }}/wa">Chat on WhatsApp</a>
+    <div class="grid"><a class="btn line" href="tel:{{ phone }}">Call</a><a class="btn line" href="{{ base }}/card.vcf">Save contact</a></div>{% endif %}
+    <a class="btn solid" href="{{ base or '/' }}">Visit our website</a>
+  </div>
+</div>
+{% if badge %}<a class="badge" href="{{ badge_link }}" target="_blank" rel="noopener"><i></i>Made free with <b>{{ program }}</b></a>{% endif %}
+</body>
+</html>

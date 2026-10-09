@@ -1,0 +1,74 @@
+/* Running the Business + Growth Mentorship pages: customers, quotations, CRM, setup, Control Room, AI staff,
+   connections and AI results. Blueprint rules: aqua = what the system does, amber only for rupees. */
+
+.meter.money i { background: var(--amber); }
+.meter.lg, .meter.lg i { height: 8px; }
+.rb-file { position: relative; overflow: hidden; }
+.rb-file input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
+.rb-file:focus-within { outline: 1px solid var(--aqua); outline-offset: 2px; }
+.rb-file.off { opacity: .45; pointer-events: none; }
+.rb-wrap { overflow-wrap: anywhere; min-width: 0; }
+.rb-cols { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+
+/* ── Quotation line items ── */
+.rb-lines { display: grid; gap: 8px; }
+.rb-line { display: grid; grid-template-columns: minmax(0, 3fr) 72px 76px minmax(90px, 1.2fr) 82px minmax(90px, 1fr) 36px; gap: 8px; align-items: center; }
+.rb-line.head span { font: 500 10px/1 var(--body); letter-spacing: .14em; text-transform: uppercase; color: var(--grey); }
+.rb-line .input, .rb-line .select { padding: 9px 10px; }
+.rb-line .amt { text-align: right; font-variant-numeric: tabular-nums; }
+.rb-line.zero .rate { border-color: var(--amber); }
+/* the shared voice-note box ends with a hint written for SOPs; the quotation page gives its own */
+.rb-voice { display: grid; gap: 8px; }
+.rb-cell { display: grid; gap: 4px; min-width: 0; }
+.rb-cell > span { display: none; font: 500 10px/1.2 var(--body); letter-spacing: .14em; text-transform: uppercase; color: var(--grey); }
+.rb-x { width: 34px; height: 34px; border: 1px solid var(--ink-line); background: transparent; color: var(--grey); cursor: pointer; border-radius: 50%; font-size: 16px; line-height: 1; }
+.rb-x:hover { color: var(--paper); border-color: var(--slate); }
+.rb-totals { display: grid; gap: 4px; justify-self: end; min-width: min(280px, 100%); }
+.rb-totals > div { display: flex; justify-content: space-between; gap: 18px; }
+.rb-totals .grand { border-top: 1px solid var(--ink-line); padding-top: 8px; margin-top: 4px; font: 400 22px/1.2 var(--head); }
+
+/* ── Control Room pipeline ── */
+.rb-stages { display: grid; gap: 10px; }
+.rb-stage { display: grid; grid-template-columns: minmax(110px, 160px) 1fr auto; gap: 12px; align-items: center; }
+.rb-stage .track { height: 10px; background: var(--ink); border: 1px solid var(--ink-line); }
+.rb-stage .track i { display: block; height: 100%; background: var(--aqua); border-radius: 0 4px 4px 0; }
+.rb-stage .nums { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rb-ceo { border-left: 3px solid var(--aqua); background: var(--ink-raised); padding: 14px 16px; display: grid; gap: 6px; }
+
+/* ── AI staff ── */
+.rb-staff { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+.rb-log { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.rb-log li { display: grid; grid-template-columns: 8px 1fr; gap: 10px; align-items: baseline; font-size: 13px; }
+.rb-log li::before { content: ""; width: 7px; height: 7px; border: 1px solid var(--aqua-deep); transform: translateY(-1px); }
+.rb-log li.done::before { background: var(--aqua); border-color: var(--aqua); }
+.rb-log li.failed::before { border-color: var(--slate); background: var(--slate); }
+
+/* ── Setup ── */
+.rb-months { display: grid; gap: 14px; }
+.rb-month { display: grid; grid-template-columns: 120px 1fr; gap: 16px; padding: 16px 18px; border: 1px solid var(--ink-line); background: var(--ink-raised); }
+.rb-month.now { border-color: var(--aqua-deep); box-shadow: inset 2px 0 0 var(--aqua); }
+.rb-month .when { display: grid; gap: 4px; align-content: start; }
+.rb-month .when b { font: 400 22px/1 var(--head); color: var(--paper); }
+.rb-step { display: grid; grid-template-columns: 22px 1fr; gap: 10px; padding: 6px 0; }
+.rb-tick { width: 18px; height: 18px; border: 1px solid var(--slate); display: inline-grid; place-items: center; font-size: 12px; line-height: 1; color: var(--ink); margin-top: 2px; }
+.rb-tick.done { background: var(--aqua); border-color: var(--aqua); }
+
+/* ── Connections ── */
+.rb-hook { display: flex; gap: 8px; align-items: center; }
+.rb-hook .input { flex: 1; min-width: 0; font-family: var(--mono); font-size: 12px; }
+
+@media (max-width: 900px) {
+  .rb-line { grid-template-columns: 1fr 1fr; }
+  .rb-line.head { display: none; }
+  .rb-line > :first-child { grid-column: 1 / -1; }
+  .rb-cell > span { display: block; }
+  .rb-line .amt { text-align: left; align-self: center; }
+  .rb-line { padding: 10px; border: 1px solid var(--ink-line); }
+  .rb-totals { justify-self: stretch; }
+  .rb-stage { grid-template-columns: 1fr auto; }
+  .rb-stage .track { grid-column: 1 / -1; grid-row: 2; }
+  .rb-month { grid-template-columns: 1fr; gap: 8px; }
+  .rb-month .when { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
+  .rb-staff { grid-template-columns: 1fr; }
+  .rb-hook { flex-wrap: wrap; }
+}
