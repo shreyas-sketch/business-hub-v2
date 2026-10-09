@@ -149,3 +149,18 @@ async def test_demo_drafts_read_cleanly_with_a_minimal_profile():
     blob = " ".join(texts)
     for bad in ["  ", " .", " ,", "the  ", "of the in", "None", "{", "with  "]:
         assert bad not in blob.replace('{"', "").replace('": {', "").replace("{", "") if bad == "{" else bad not in blob, bad
+
+
+async def test_aisensy_refusal_reason_is_logged_without_the_key(monkeypatch, caplog):
+    import logging
+    from app import messaging
+    object.__setattr__(settings, "aisensy_api_key", "secret-key-123")
+    try:
+        monkeypatch.setattr(messaging.httpx, "AsyncClient", FakeHTTP(lambda r: httpx.Response(
+            400, json={"errorMessage": "Campaign hub_login_code does not exist or is not live", "echo": "secret-key-123"})))
+        with caplog.at_level(logging.INFO):
+            out = await messaging.whatsapp_template("+919820000001", "hub_login_code", "", ["123456"], "otp")
+        assert out == {"sent": False, "via": "whatsapp"}
+        assert "does not exist or is not live" in caplog.text and "secret-key-123" not in caplog.text
+    finally:
+        object.__setattr__(settings, "aisensy_api_key", "")

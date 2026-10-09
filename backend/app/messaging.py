@@ -47,8 +47,11 @@ async def whatsapp_template(to: str, campaign: str, user_name: str, params: list
         async with httpx.AsyncClient(timeout=15) as client:
             r = await client.post(AISENSY_URL, json=payload)
         ok = r.status_code == 200
-        if not ok:
-            log.warning("AiSensy %s failed: %s", kind, r.status_code)
+        reply = re.sub(r"\s+", " ", r.text or "")[:300].replace(settings.aisensy_api_key, "***")
+        if ok:
+            log.info("AiSensy %s accepted for campaign %r: %s", kind, campaign, reply)
+        else:  # AiSensy says why (wrong campaign name, template not approved, low wallet balance…) — keep it in the log
+            log.warning("AiSensy %s failed for campaign %r: %s %s", kind, campaign, r.status_code, reply)
         return {"sent": ok, "via": "whatsapp"}
     except httpx.HTTPError as e:
         log.warning("AiSensy %s error: %s", kind, type(e).__name__)
