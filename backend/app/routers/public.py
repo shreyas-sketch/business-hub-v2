@@ -270,6 +270,15 @@ async def showcase():
     return out
 
 
+@router.get("/api/public/plans")
+async def public_plans():
+    """The six plans for the public landing page: names, prices and promises as the admin last set them."""
+    await plans.load()
+    return [{"tier": p["tier"], "name": p["name"], "price_minor": p["price_minor"], "period": p.get("period", ""),
+             "billing": p.get("billing", ""), "promise": p.get("promise", ""), "pitch": p.get("pitch", ""),
+             "runs": p.get("runs", 0), "access_days": p.get("access_days"), "features": len(p["unlocks"])} for p in plans.ladder()]
+
+
 @router.get("/api/public/invite/{code}")
 async def invite_info(code: str, src: str = "invite"):
     user = await db().users.find_one({"ref_code": code.strip().upper()[:12]})
