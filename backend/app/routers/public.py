@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
+from .. import photos as photos_mod
 from .. import plans
 from ..config import settings
 from ..db import IST, db, now
@@ -79,6 +80,17 @@ async def _extras(owner: dict, ws: str) -> dict:
     return out
 
 
+@router.get("/s/{slug}/photo/{photo_id}")
+async def site_photo(slug: str, photo_id: str, viewer: dict | None = Depends(optional_user)):
+    site, owner, _ = await _site_and_owner(slug, viewer, True)
+    if not site:
+        return Response(status_code=404)
+    p = await db().site_photos.find_one({"_id": photo_id[:40], "owner_id": owner["_id"]})
+    if not p:
+        return Response(status_code=404)
+    return Response(bytes(p["data"]), media_type=p["type"], headers={"Cache-Control": "public, max-age=604800, immutable"})
+
+
 @router.api_route("/s/{slug}", methods=["GET", "HEAD"], response_class=HTMLResponse)
 async def member_site(slug: str, request: Request, preview: int = 0, sent: int = 0, viewer: dict | None = Depends(optional_user)):
     site, owner, business = await _site_and_owner(slug, viewer, bool(preview))
@@ -97,7 +109,9 @@ async def member_site(slug: str, request: Request, preview: int = 0, sent: int =
         preview=bool(preview), live=site["status"] == "live", form_error=FORM_ERRORS.get(request.query_params.get("err", "")),
         badge=not plans.has(owner, "badge_off"), badge_link=f"{settings.app_url}/join?ref={owner['ref_code']}&src=badge",
         ladder=extras["ladder"], guide=extras["guide"], logo=extras["logo"], url=site_url(site["slug"]),
-        program=settings.program_name, year=now().year)
+        program=settings.program_name, year=now().year, photos=photos_mod.resolved(site.get("photos"), base),
+        industry=business.get("industry", ""))
+    photos_mod.fill_later(site, business)
     return HTMLResponse(html, headers={"Cache-Control": "no-store" if preview else "no-cache"})  # edits and plan changes show at once
 
 

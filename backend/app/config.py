@@ -102,6 +102,8 @@ class Settings:
     whatsapp_graph_base: str = os.getenv("WHATSAPP_GRAPH_BASE", "https://graph.facebook.com/v21.0").rstrip("/")
     employz_api_base: str = os.getenv("EMPLOYZ_API_BASE", "https://services.leadconnectorhq.com").rstrip("/")
     employz_app_url: str = os.getenv("EMPLOYZ_APP_URL", "").rstrip("/")
+    # Stock photos for owners' websites (pexels.com/api — free key). Blank = websites use their own uploads or designed artwork.
+    pexels_api_key: str = os.getenv("PEXELS_API_KEY", "").strip()
     elevenlabs_api_base: str = os.getenv("ELEVENLABS_API_BASE", "https://api.elevenlabs.io").rstrip("/")
     aisensy_owner_alert_campaign: str = os.getenv("AISENSY_OWNER_ALERT_CAMPAIGN", "")  # to the owner: {{1}} business, {{2}} the message
     campaign_daily_cap: int = _int("CAMPAIGN_DAILY_CAP", 200)          # money-campaign messages per owner per day

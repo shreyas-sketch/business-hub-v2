@@ -2,16 +2,20 @@
 import re
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException
+from bson import Binary
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from pymongo.errors import DuplicateKeyError
+from starlette.datastructures import UploadFile
 
+from .. import photos as photos_mod
 from .. import plans
 from ..ai import tasks
 from ..config import settings
 from ..db import db, now, public
 from ..context import Ctx, get_ctx, manager_ctx, owner_ctx
 from ..services import invite_link, new_id, reward_referrer, run_ai, track
+from ..security import rate_limit
 from ..sites import site_url
 
 router = APIRouter(prefix="/api")
@@ -150,6 +154,7 @@ class SiteContent(BaseModel):
     why: list[Item] = Field(default_factory=list, max_length=6)
     steps: list[Item] = Field(default_factory=list, max_length=6)
     faq: list[Faq] = Field(default_factory=list, max_length=10)
+    photo_queries: list[str] = Field(default_factory=list, max_length=4)  # stock photo search terms the AI suggested
 
 
 class SiteIn(BaseModel):
@@ -182,6 +187,8 @@ def site_view(site: dict | None, user: dict) -> dict | None:
     out["sites_domain"] = settings.sites_domain or None
     out["badge"] = not plans.has(user, "badge_off")
     out["accents"] = ACCENTS
+    out["photos"] = photos_mod.resolved(site.get("photos"), f"{settings.app_url}/s/{site['slug']}")
+    out["stock_photos"] = bool(settings.pexels_api_key)
     return out
 
 
@@ -201,6 +208,8 @@ def _blank_nulls(value):
 
 def _site_from_ai(result: dict) -> dict:
     r = _blank_nulls(result)
+    r["photo_queries"] = [q.strip()[:60] for q in (r.get("photo_queries") if isinstance(r.get("photo_queries"), list) else [])
+                          if isinstance(q, str) and q.strip()][:4]
     lists = {k: (r.get(k) if isinstance(r.get(k), list) else []) for k in ("offers", "why", "steps", "faq")}
     return SiteContent.model_validate({**r, "offers": lists["offers"][:12], "why": lists["why"][:6],
                                        "steps": lists["steps"][:6], "faq": lists["faq"][:10]}).model_dump()
@@ -225,6 +234,8 @@ async def generate_site(ctx: Ctx = Depends(owner_ctx)):
                 if await db().sites.find_one({"owner_id": user["_id"]}):  # a double click created it already
                     await db().sites.update_one({"owner_id": user["_id"]}, {"$set": {"content": content, "updated_at": now()}})
                     break
+    site = await db().sites.find_one({"owner_id": user["_id"]})
+    await photos_mod.refresh_stock(site, b)
     return site_view(await db().sites.find_one({"owner_id": user["_id"]}), user)
 
 
@@ -265,6 +276,95 @@ async def publish_site(ctx: Ctx = Depends(owner_ctx)):
     if first_time:
         await track("site_live", user["_id"])
         await reward_referrer(user)
+    return site_view(await db().sites.find_one({"_id": site["_id"]}), user)
+
+
+# ───────── Website photos: the owner's own (hero + gallery), stock photos from Pexels, or the designed artwork ─────────
+@router.post("/site/photos")
+async def upload_site_photo(request: Request, ctx: Ctx = Depends(owner_ctx)):
+    user = ctx.owner
+    site = await db().sites.find_one({"owner_id": user["_id"]})
+    if not site:
+        raise HTTPException(400, "Create your website first")
+    form = await request.form()
+    try:
+        f, slot = form.get("file"), str(form.get("slot") or "gallery")
+        if not isinstance(f, UploadFile):
+            raise HTTPException(400, "Choose a photo.")
+        data = await f.read(photos_mod.UPLOAD_BYTES + 1)
+    finally:
+        await form.close()
+    if slot not in ("hero", "gallery"):
+        raise HTTPException(400, "Unknown photo slot")
+    if len(data) > photos_mod.UPLOAD_BYTES:
+        raise HTTPException(413, "Keep each photo under 3 MB.")
+    kind = photos_mod.image_type(data)
+    if not kind:
+        raise HTTPException(415, "Upload a JPG, PNG or WebP photo.")
+    if await db().site_photos.count_documents({"owner_id": user["_id"]}) >= photos_mod.UPLOADS_MAX:
+        raise HTTPException(400, f"You can keep up to {photos_mod.UPLOADS_MAX} photos. Remove one first.")
+    pid = new_id()
+    await db().site_photos.insert_one({"_id": pid, "owner_id": user["_id"], "type": kind, "data": Binary(data), "at": now()})
+    ph = site.get("photos") or {"hero": None, "gallery": [], "offers": {}}
+    item = {"kind": "upload", "id": pid, "alt": (await _profile(ctx)).get("name", "")[:120]}
+    if slot == "hero":
+        old = ph.get("hero") or {}
+        if old.get("kind") == "upload":
+            await db().site_photos.delete_one({"_id": old["id"], "owner_id": user["_id"]})
+        ph["hero"] = item
+    else:
+        gallery = [p for p in ph.get("gallery", []) if p]
+        uploads = [p for p in gallery if p.get("kind") == "upload"]
+        if len(uploads) >= photos_mod.GALLERY_MAX:
+            await db().site_photos.delete_one({"_id": pid})
+            raise HTTPException(400, f"The gallery holds {photos_mod.GALLERY_MAX} photos. Remove one first.")
+        ph["gallery"] = (uploads + [item] + [p for p in gallery if p.get("kind") != "upload"])[:photos_mod.GALLERY_MAX]
+    await db().sites.update_one({"_id": site["_id"]}, {"$set": {"photos": ph, "updated_at": now()}})
+    return site_view(await db().sites.find_one({"_id": site["_id"]}), user)
+
+
+class PhotoRemoveIn(BaseModel):
+    slot: str = Field(pattern="^(hero|gallery)$")
+    index: int = Field(default=0, ge=0, le=20)
+
+
+@router.post("/site/photos/remove")
+async def remove_site_photo(body: PhotoRemoveIn, ctx: Ctx = Depends(owner_ctx)):
+    user = ctx.owner
+    site = await db().sites.find_one({"owner_id": user["_id"]})
+    if not site:
+        raise HTTPException(400, "Create your website first")
+    ph = site.get("photos") or {}
+    gallery = ph.get("gallery") or []
+    if body.slot == "hero":
+        gone = ph.get("hero")
+    else:
+        gone = gallery[body.index] if body.index < len(gallery) else None
+    if not gone:
+        raise HTTPException(404, "That photo is already gone")
+    if body.slot == "hero":
+        ph["hero"] = None
+    else:
+        ph["gallery"] = [p for i, p in enumerate(ph.get("gallery", [])) if i != body.index]
+    if gone.get("kind") == "upload":
+        await db().site_photos.delete_one({"_id": gone["id"], "owner_id": user["_id"]})
+    await db().sites.update_one({"_id": site["_id"]}, {"$set": {"photos": ph, "updated_at": now()}})
+    return site_view(await db().sites.find_one({"_id": site["_id"]}), user)
+
+
+@router.post("/site/photos/stock")
+async def refresh_stock_photos(ctx: Ctx = Depends(owner_ctx)):
+    """Find stock photos again (keeps the owner's uploads)."""
+    user = ctx.owner
+    if not settings.pexels_api_key:
+        raise HTTPException(400, "Stock photos aren't switched on for this hub. Upload your own photos instead.")
+    site = await db().sites.find_one({"owner_id": user["_id"]})
+    if not site:
+        raise HTTPException(400, "Create your website first")
+    await rate_limit(f"stock:{user['_id']}", 10, 3600, "Photos were refreshed many times this hour. Try again later.")
+    photos = await photos_mod.refresh_stock(site, await _profile(ctx))
+    if not photos.get("hero") and not photos.get("gallery"):
+        raise HTTPException(404, "No stock photos found for this business. Upload your own instead.")
     return site_view(await db().sites.find_one({"_id": site["_id"]}), user)
 
 

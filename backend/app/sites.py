@@ -34,7 +34,7 @@ def slug_from_host(host: str) -> str | None:
 def rewrite_to_site(scope: dict, slug: str) -> bool:
     """Points a website-host request at /s/<slug>/... Returns False for paths a website doesn't have."""
     path = scope.get("path") or "/"
-    if path.rstrip("/") not in {p.rstrip("/") for p in SITE_PATHS}:
+    if path.rstrip("/") not in {p.rstrip("/") for p in SITE_PATHS} and not path.startswith("/photo/"):
         return False
     tail = "" if path in ("", "/") else path
     scope["path"] = f"/s/{slug}{tail}"

@@ -17,6 +17,12 @@ built and tested. Work top to bottom: the first three steps take minutes, the Wh
 
 Test: log in → **AI Writer → Write this week's posts**. The posts are written for that business, different every time.
 
+## 1b. Photos on owners' websites (2 minutes)
+
+pexels.com/api → **Your API key** (free, instant). Railway → Variables → `PEXELS_API_KEY=...`. New websites get
+professional stock photos matching the business; existing ones get them on their next visit. Owners can upload their
+own photos in **Website → Photos** at any time — those always win over stock photos.
+
 ## 2. Logins without codes on screen (2 minutes)
 
 Remove `DEMO_PHONES`, and add a password for the demo accounts:

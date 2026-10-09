@@ -98,6 +98,7 @@ async def site_content(p: dict, brand: dict | None):
             "steps": [{"title": "Tell us what you need", "text": "Send a message or fill the form. We reply the same day."},
                       {"title": "Get a clear quote", "text": "You see exactly what is included before anything starts."},
                       {"title": "We get it done", "text": "One person stays responsible until the job is complete."}],
+            "photo_queries": [],
             "faq": [{"q": "How quickly do you reply?", "a": "Usually within a few hours on working days."},
                     {"q": "Which areas do you serve?", "a": f"We work across {city}." if city else "Message us with your location and we'll confirm."}],
         }
@@ -114,7 +115,8 @@ JSON: {{
  "offers": [{{"name": "exactly as given", "description": "one sentence", "price": "exactly as given or empty"}}],
  "why": [{{"title": "max 6 words", "text": "one sentence"}}] (3 items, from 'why customers choose them' only),
  "steps": [{{"title": "...", "text": "..."}}] (3 steps: how working with them goes),
- "faq": [{{"q": "...", "a": "..."}}] (2-4 items, only questions answerable from the profile)
+ "faq": [{{"q": "...", "a": "..."}}] (2-4 items, only questions answerable from the profile),
+ "photo_queries": ["2-4 plain English words for a stock photo search: the main scene of this kind of business", "2-4 words: the work or product up close"]
 }}
 Include only the offers listed in the profile.""", mock, 4000)
 
