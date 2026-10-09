@@ -317,3 +317,13 @@ async def test_admin_numbers_automations_run_once_they_have_a_business(client):
     assert me not in ids(await scheduler.candidate_owners())  # managing the hub only: no automations about an empty hub
     assert (await admin.put("/api/business", json=PROFILE)).status_code == 200
     assert me in ids(await scheduler.candidate_owners())  # their own business set up: everything runs, like the top plan
+
+
+async def test_admin_numbers_match_in_any_format(client):
+    """ADMIN_PHONES typed as 9833587705 or '+91 98335 87705' must still unlock that login."""
+    import os
+    import subprocess
+    out = subprocess.run(["python3", "-c", "from app.config import settings; print(','.join(settings.admin_phones))"],
+                         env={**os.environ, "APP_ENV": "test", "ADMIN_PHONES": "9833587705, +91 98331 12500,09833112990"},
+                         capture_output=True, text=True, check=True).stdout.strip()
+    assert out == "+919833587705,+919833112500,+919833112990"

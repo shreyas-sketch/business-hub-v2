@@ -19,8 +19,10 @@ def _float(name: str, default: float) -> float:
 
 
 def _demo_phone(raw: str) -> str:
-    """98200 00001 → +919820000001, the same form the login uses."""
+    """98200 00001, +91 98200-00001, 09820000001 → +919820000001, the same form the login uses."""
     digits = re.sub(r"\D", "", raw)
+    if len(digits) == 11 and digits.startswith("0"):
+        digits = digits[1:]
     return "+" + ("91" + digits if len(digits) == 10 else digits)
 
 
@@ -34,7 +36,8 @@ class Settings:
     mongo_url: str = os.getenv("MONGO_URL", "mongodb://127.0.0.1:27017")
     db_name: str = os.getenv("DB_NAME", "action_hub")
     jwt_secret: str = os.getenv("JWT_SECRET", "")
-    admin_phones: tuple = tuple(p.strip() for p in os.getenv("ADMIN_PHONES", "").split(",") if p.strip())
+    # Any format works: 9833587705, +91 98335 87705, 919833587705 — all become +919833587705, as logins store them.
+    admin_phones: tuple = tuple(_demo_phone(p) for p in os.getenv("ADMIN_PHONES", "").split(",") if p.strip())
     # Demo numbers for a test deployment: their login code is shown on screen instead of being sent. Anyone who
     # knows one of these numbers can log in as it, so keep this blank once real owners use the hub.
     demo_phones: tuple = tuple(_demo_phone(p) for p in os.getenv("DEMO_PHONES", "").split(",") if p.strip())
