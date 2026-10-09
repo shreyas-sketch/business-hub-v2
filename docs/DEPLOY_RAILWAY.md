@@ -10,7 +10,7 @@ Razorpay or AI keys are needed. The full production setup (Atlas, the hub's What
    If the code is still on a branch, open the service → **Settings → Source** and choose that branch.
    Railway finds `railway.json` and the `Dockerfile`; the first build takes 3–5 minutes.
 2. In the same project: **+ Create → Database → MongoDB**. Railway starts a MongoDB service next to the hub.
-3. Hub service → **Settings → Networking → Generate Domain** (port 8000 if asked). You get an address like
+3. Hub service → **Settings → Networking → Generate Domain**, target port **8000** (the `PORT=8000` variable below makes the hub listen there). You get an address like
    `business-hub-v2-production.up.railway.app`. The hub uses it automatically when `APP_URL` is blank.
 4. Hub service → **Settings → Region**: Southeast Asia (Singapore), and put the MongoDB service in the same region.
 
@@ -20,6 +20,7 @@ Hub service → **Variables → Raw Editor**, paste, then fill in the two keys (
 
 ```
 APP_ENV=production
+PORT=8000
 MONGO_URL=${{MongoDB.MONGO_URL}}
 DB_NAME=action_hub
 JWT_SECRET=
@@ -43,7 +44,8 @@ Save → Railway redeploys. On the first start the demo hub is loaded into the e
 
 ## 3. Test it
 
-Open `https://<your domain>/api/health` → `{"ok":true}`. Then open the domain and log in. With a demo number the code is
+Open `https://<your domain>/api/health` → `{"ok":true}`. If Railway shows *Application failed to respond*, the domain's port and
+the port in the Deploy Logs (`Uvicorn running on http://0.0.0.0:8000`) differ: make them the same. Then open the domain and log in. With a demo number the code is
 shown on the login screen.
 
 | Number | Who |
