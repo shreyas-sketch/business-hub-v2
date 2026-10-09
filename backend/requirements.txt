@@ -8,3 +8,4 @@ httpx>=0.27,<1
 jinja2>=3.1,<4
 python-multipart>=0.0.9
 dnspython>=2.6,<3
+asgi-lifespan>=2.1          # seed_demo.py (SEED_DEMO=true on a test deployment)

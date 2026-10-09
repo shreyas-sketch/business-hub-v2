@@ -7,6 +7,7 @@ commissions, a member call and recordings.
 Run with AI_PROVIDER=mock (default). Admin login: the first number in ADMIN_PHONES. Codes appear on the login screen in development."""
 import asyncio
 import os
+import sys
 from datetime import timedelta
 
 os.environ.setdefault("APP_ENV", "development")  # the demo only runs locally: it reads login codes from the dev outbox
@@ -40,6 +41,9 @@ async def live(c, profile, pick=0):
 
 async def main():
     d = connect()
+    if "--if-empty" in sys.argv and await d.users.count_documents({}, limit=1):
+        print("Demo data skipped: the database already has users.")
+        return
     for n in await d.list_collection_names():
         await d[n].delete_many({})
     async with LifespanManager(app):

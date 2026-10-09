@@ -1,5 +1,6 @@
 """All settings come from environment variables. Nothing here needs editing to deploy."""
 import os
+import re
 from dataclasses import dataclass, field
 
 
@@ -17,15 +18,26 @@ def _float(name: str, default: float) -> float:
         return default
 
 
+def _demo_phone(raw: str) -> str:
+    """98200 00001 → +919820000001, the same form the login uses."""
+    digits = re.sub(r"\D", "", raw)
+    return "+" + ("91" + digits if len(digits) == 10 else digits)
+
+
 @dataclass(frozen=True)
 class Settings:
     # production unless you explicitly say otherwise; "development" only takes effect on a localhost APP_URL
     env: str = os.getenv("APP_ENV", "production").strip().lower()        # production | development | test
-    app_url: str = os.getenv("APP_URL", "http://localhost:8000").rstrip("/")
+    # Blank APP_URL on Railway falls back to the domain Railway generated for the service (Settings → Networking).
+    app_url: str = (os.getenv("APP_URL") or (f"https://{os.getenv('RAILWAY_PUBLIC_DOMAIN')}" if os.getenv("RAILWAY_PUBLIC_DOMAIN")
+                                            else "http://localhost:8000")).rstrip("/")
     mongo_url: str = os.getenv("MONGO_URL", "mongodb://127.0.0.1:27017")
     db_name: str = os.getenv("DB_NAME", "action_hub")
     jwt_secret: str = os.getenv("JWT_SECRET", "")
     admin_phones: tuple = tuple(p.strip() for p in os.getenv("ADMIN_PHONES", "").split(",") if p.strip())
+    # Demo numbers for a test deployment: their login code is shown on screen instead of being sent. Anyone who
+    # knows one of these numbers can log in as it, so keep this blank once real owners use the hub.
+    demo_phones: tuple = tuple(_demo_phone(p) for p in os.getenv("DEMO_PHONES", "").split(",") if p.strip())
 
     # Login and abuse limits
     otp_country_codes: tuple = tuple(c.strip().lstrip("+") for c in os.getenv("OTP_COUNTRY_CODES", "91").split(",") if c.strip())

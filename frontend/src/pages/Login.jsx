@@ -44,8 +44,9 @@ export default function Login() {
           </form>
         ) : (
           <form className="stack" onSubmit={verify}>
-            <p className="sub">Sent to {phone} on {sent.via.includes("sms") ? "SMS" : "WhatsApp"}.</p>
-            {sent.dev_code && <p className="prompt mono">Development mode — code: {sent.dev_code}</p>}
+            {sent.via === "demo" ? <p className="sub">This is a demo number, so the code is shown here instead of being sent.</p>
+              : <p className="sub">Sent to {phone} on {sent.via.includes("sms") ? "SMS" : "WhatsApp"}.</p>}
+            {sent.dev_code && <p className="prompt mono">{sent.via === "demo" ? "Demo" : "Development mode"} — code: {sent.dev_code}</p>}
             <input className="input mono" inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="6-digit code"
               value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} required autoFocus style={{ letterSpacing: ".3em", fontSize: 20 }} />
             <button className="btn primary" disabled={busy || code.length !== 6}>{busy ? "Checking…" : "Log in"}</button>

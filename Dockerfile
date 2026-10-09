@@ -19,5 +19,6 @@ WORKDIR /app/backend
 RUN useradd --create-home hub && chown -R hub /app
 USER hub
 EXPOSE 8000
-# Railway sets PORT. Two workers are plenty for a workshop room; all state lives in MongoDB.
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers ${WEB_CONCURRENCY:-2}"]
+# Railway sets PORT. Two workers (WEB_CONCURRENCY) are plenty for a workshop room; all state lives in MongoDB.
+# start.sh loads the demo hub into an empty database when SEED_DEMO=true, then starts uvicorn on Railway's PORT.
+CMD ["sh", "start.sh"]

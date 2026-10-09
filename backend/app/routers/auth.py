@@ -41,7 +41,8 @@ async def request_otp(body: OtpIn, request: Request):
     phone = normalise_phone(body.phone)
     if not _allowed_country(phone):
         raise HTTPException(400, "Please use an Indian mobile number.")
-    await rate_limit(f"otp:{phone}", 5, 3600, "Too many codes requested for this number. Try again in an hour.")
+    demo = phone in settings.demo_phones
+    await rate_limit(f"otp:{phone}", 60 if demo else 5, 3600, "Too many codes requested for this number. Try again in an hour.")
     # Generous per-network limit: a whole workshop room can share one Wi-Fi address.
     await rate_limit(f"otp-ip:{client_ip(request)}", settings.otp_per_ip_per_hour, 3600, "Too many attempts from this network. Try again later.")
     code = new_otp()
@@ -49,6 +50,8 @@ async def request_otp(body: OtpIn, request: Request):
     await db().otp_attempts.delete_many({"phone": phone})
     await db().otps.insert_one({"_id": new_id(), "phone": phone, "hash": hash_otp(phone, code),
                                 "expires_at": now() + timedelta(minutes=10)})
+    if demo:  # a test deployment's demo number: nothing is sent, the code is shown on screen
+        return {"sent": True, "via": "demo", "dev_code": code}
     result = await send_otp(phone, code)
     if not result["sent"]:
         raise HTTPException(503, "We couldn't send the code right now. Please try again in a minute.")
