@@ -52,6 +52,8 @@ class Settings:
     # AI engine: anthropic | gemini | openai | mock
     ai_provider: str = os.getenv("AI_PROVIDER", "mock").lower()
     ai_model: str = os.getenv("AI_MODEL", "")
+    # Claude's thinking depth for the hub's short JSON tasks (low = fast and cheap). Blank for models without effort (Haiku 4.5).
+    ai_effort: str = os.getenv("AI_EFFORT", "low").strip().lower()
     anthropic_api_key: str = os.getenv("ANTHROPIC_API_KEY", "")
     gemini_api_key: str = os.getenv("GEMINI_API_KEY", "")
     openai_api_key: str = os.getenv("OPENAI_API_KEY", "")

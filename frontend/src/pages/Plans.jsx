@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { api, day, rupees } from "../api.js";
 import { checkout, paise } from "../billing.js";
@@ -201,7 +201,33 @@ function PlansInner() {
         ) : <div className="empty"><p className="muted">No payments yet.</p></div>}
         <p className="small muted">Payments are processed by Razorpay. For a receipt or a refund, reply to your payment email or message the Business AI team.</p>
       </div>
+      <EmailLogin me={me} refresh={refresh} toast={toast} />
     </Sheet>
+  );
+}
+
+/** Lets an owner who joined with their mobile also log in with an email and password. */
+function EmailLogin({ me, refresh, toast }) {
+  const has = Boolean(me.user.email);
+  const [f, setF] = useState({ email: me.user.email || "", password: "", current_password: "" });
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  return (
+    <div className="panel">
+      <span className="label">Log in with email</span>
+      <p className="small muted">{has ? <>You can log in with <b style={{ color: "var(--paper)" }}>{me.user.email}</b> as well as your mobile number. Change it here.</>
+        : "Add an email and password, so you can log in even when a WhatsApp code can't reach you."}</p>
+      <div className="grid3">
+        <label className="field"><span className="label">Email</span><input className="input" type="email" autoComplete="email" value={f.email} onChange={set("email")} /></label>
+        <label className="field"><span className="label">{has ? "New password" : "Password"}</span><input className="input" type="password" autoComplete="new-password" placeholder="At least 8 characters" value={f.password} onChange={set("password")} /></label>
+        {has && <label className="field"><span className="label">Current password</span><input className="input" type="password" autoComplete="current-password" value={f.current_password} onChange={set("current_password")} /></label>}
+      </div>
+      <div><Busy className="btn" disabled={!f.email || f.password.length < 8} run={async () => {
+        await api("/auth/password", { method: "PUT", body: f });
+        setF({ ...f, password: "", current_password: "" });
+        await refresh();
+        toast("Email login saved.");
+      }}>{has ? "Update email login" : "Add email login"}</Busy></div>
+    </div>
   );
 }
 

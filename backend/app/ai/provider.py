@@ -11,6 +11,9 @@ import httpx
 
 from ..config import settings
 
+# Current Claude models think before answering, and thinking counts towards max_tokens: this keeps room for it so
+# the JSON answer itself is never cut off.
+THINKING_HEADROOM = 4000
 DEFAULT_MODEL = {"anthropic": "claude-haiku-5-5", "gemini": "gemini-2.5-flash", "openai": "gpt-4.1-mini"}
 
 
@@ -54,10 +57,16 @@ async def complete(system: str, prompt: str, mock, max_tokens: int = 1200) -> tu
             if provider == "anthropic":
                 r = await client.post("https://api.anthropic.com/v1/messages", headers={
                     "x-api-key": settings.anthropic_api_key, "anthropic-version": "2023-06-01", "content-type": "application/json"},
-                    json={"model": model, "max_tokens": max_tokens, "system": sys_prompt, "messages": [{"role": "user", "content": prompt}]})
+                    json={"model": model, "max_tokens": max_tokens + THINKING_HEADROOM, "system": sys_prompt,
+                          "messages": [{"role": "user", "content": prompt}],
+                          **({"output_config": {"effort": settings.ai_effort}} if settings.ai_effort else {})})
                 d = r.json()
                 if r.status_code != 200:
                     raise AIError(f"anthropic {r.status_code}: {r.text[:200]}")
+                if d.get("stop_reason") == "max_tokens":
+                    raise AIError("anthropic: the answer was cut off (max_tokens)")
+                if d.get("stop_reason") == "refusal":
+                    raise AIError("anthropic: the request was declined")
                 text = "".join(b.get("text", "") for b in d.get("content", []) if b.get("type") == "text")
                 usage = Usage(d.get("usage", {}).get("input_tokens", 0), d.get("usage", {}).get("output_tokens", 0), model)
             elif provider == "gemini":

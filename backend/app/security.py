@@ -48,6 +48,24 @@ def otp_matches(phone: str, code: str, stored: str) -> bool:
     return hmac.compare_digest(hash_otp(phone, code), stored)
 
 
+def hash_password(password: str) -> str:
+    """scrypt (standard library), with a random salt per password."""
+    salt = secrets.token_bytes(16)
+    digest = hashlib.scrypt(password.encode(), salt=salt, n=2 ** 14, r=8, p=1, dklen=32)
+    return f"scrypt${salt.hex()}${digest.hex()}"
+
+
+def password_matches(password: str, stored: str | None) -> bool:
+    try:
+        scheme, salt, digest = (stored or "").split("$")
+    except ValueError:
+        return False
+    if scheme != "scrypt":
+        return False
+    test = hashlib.scrypt(password.encode(), salt=bytes.fromhex(salt), n=2 ** 14, r=8, p=1, dklen=32)
+    return hmac.compare_digest(test.hex(), digest)
+
+
 def issue_session(response: Response, user: dict) -> None:
     token = jwt.encode({"sub": user["_id"], "v": user.get("session_version", 0),
                         "exp": now() + timedelta(days=SESSION_DAYS)}, _secret(), algorithm="HS256")

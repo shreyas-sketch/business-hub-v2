@@ -36,6 +36,8 @@ def month_key(at: datetime | None = None) -> str:
 async def ensure_indexes() -> None:
     d = db()
     await d.users.create_index("phone", unique=True)
+    # Email login is optional, so only accounts that have an email take part in the unique index.
+    await d.users.create_index("email", unique=True, partialFilterExpression={"email": {"$type": "string"}})
     await d.users.create_index("ref_code", unique=True)
     await d.users.create_index("referred_by")
     await d.businesses.create_index("owner_id", unique=True)

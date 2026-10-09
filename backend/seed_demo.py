@@ -39,8 +39,30 @@ async def live(c, profile, pick=0):
     return (await c.get("/api/site")).json()
 
 
+# Email logins for the demo accounts (DEMO_PASSWORD on a deployment), so the demo never needs codes on screen.
+DEMO_EMAILS = {"+919999900000": "admin@demo.hub", "+919820000001": "legacy@demo.hub", "+919820000011": "manager@demo.hub",
+               "+919820000012": "staff@demo.hub", "+919820000006": "growth@demo.hub", "+919820000005": "running@demo.hub",
+               "+919820000003": "program@demo.hub", "+919820000002": "member@demo.hub", "+919820000004": "free@demo.hub"}
+
+
+async def demo_logins(d, password):
+    from app.security import hash_password
+    n = 0
+    for phone, email in DEMO_EMAILS.items():
+        r = await d.users.update_one({"phone": phone}, {"$set": {"email": email, "password": hash_password(password)}})
+        n += r.matched_count
+    print(f"Demo email logins set for {n} accounts (password from DEMO_PASSWORD).")
+
+
 async def main():
     d = connect()
+    if "--demo-logins" in sys.argv:
+        password = os.getenv("DEMO_PASSWORD", "")
+        if len(password) < 8:
+            print("DEMO_PASSWORD must be at least 8 characters; demo email logins not set.")
+            return
+        await demo_logins(d, password)
+        return
     if "--if-empty" in sys.argv and await d.users.count_documents({}, limit=1):
         print("Demo data skipped: the database already has users.")
         return

@@ -9,4 +9,8 @@ if [ "${SEED_DEMO:-false}" = "true" ]; then
       APP_ENV=development APP_URL=http://localhost:8000 AI_PROVIDER=mock ADMIN_PHONES=+919999900000 RUN_SCHEDULER=false \
       python3 seed_demo.py --if-empty || echo "Demo data could not be loaded; starting the hub anyway."
 fi
+if [ -n "${DEMO_PASSWORD:-}" ]; then
+  # Email + password logins for the demo accounts (admin@demo.hub, legacy@demo.hub, …). Safe to run on every start.
+  python3 seed_demo.py --demo-logins || echo "Demo email logins could not be set."
+fi
 exec uvicorn app.main:app --host 0.0.0.0 --port "${PORT:-8000}" --workers "${WEB_CONCURRENCY:-2}"

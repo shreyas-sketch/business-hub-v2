@@ -41,6 +41,8 @@ async def test_anthropic_call_shape_and_usage(ai, monkeypatch):
         body = json.loads(req.content)
         assert req.url.path == "/v1/messages" and req.headers["x-api-key"] == "sk-test" and req.headers["anthropic-version"] == "2023-06-01"
         assert body["model"] == "claude-haiku-5-5" and "Shree Ganesh Interiors" in body["messages"][0]["content"]
+        assert body["output_config"] == {"effort": "low"} and body["max_tokens"] > 4000  # room for thinking
+        assert "thinking" not in body and "temperature" not in body
         return httpx.Response(200, json={"content": [{"type": "text", "text": '```json\n{"options": [{"message": "Kitchens done on time", "pitch": "We fit kitchens."}]}\n```'}],
                                          "usage": {"input_tokens": 900, "output_tokens": 200}})
     fake = FakeHTTP(handler); monkeypatch.setattr(provider.httpx, "AsyncClient", fake)
@@ -57,6 +59,11 @@ async def test_engine_errors_become_aierror(ai, monkeypatch):
     monkeypatch.setattr(provider.httpx, "AsyncClient", FakeHTTP(lambda r: httpx.Response(200, json={"content": [{"type": "text", "text": "Sorry, I can't"}], "usage": {}})))
     with pytest.raises(AIError):
         await tasks.business_qa(PROFILE, "What next?")
+    for stop in ("max_tokens", "refusal"):  # a cut-off or declined answer is an error, never half a JSON object
+        monkeypatch.setattr(provider.httpx, "AsyncClient", FakeHTTP(lambda r, stop=stop: httpx.Response(200, json={
+            "content": [{"type": "text", "text": '{"answer": "ok"}'}], "stop_reason": stop, "usage": {}})))
+        with pytest.raises(AIError):
+            await tasks.business_qa(PROFILE, "What next?")
 
 
 async def test_incomplete_ai_website_is_refused_and_refunded(client, ai, monkeypatch):

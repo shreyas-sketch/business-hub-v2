@@ -1,3 +1,4 @@
+import re
 from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
@@ -8,8 +9,8 @@ from .. import plans
 from ..config import settings
 from ..db import db, now
 from ..messaging import send_otp
-from ..security import (client_ip, clear_session, current_user, hash_otp, issue_session, new_otp, normalise_phone,
-                        otp_matches, rate_limit)
+from ..security import (client_ip, clear_session, current_user, hash_otp, hash_password, issue_session, new_otp, normalise_phone,
+                        otp_matches, password_matches, rate_limit)
 from ..services import attach_referral, invite_link, new_id, new_ref_code, runs_own_hub, runs_status, track
 from ..sites import site_url
 
@@ -88,6 +89,104 @@ async def verify_otp(body: VerifyIn, request: Request, response: Response):
     await db().users.update_one({"_id": user["_id"]}, {"$set": {"last_seen_at": now(), "role": role}})
     issue_session(response, user)
     return {"ok": True, "new": created}
+
+
+# ───────────────────────── Email and password ─────────────────────────
+# A second way in, for when WhatsApp or SMS codes can't reach someone. The mobile number typed at sign-up is not
+# verified, so an email sign-up can never take over anything tied to a number: not an existing account, not a team
+# invite, not an admin number.
+EMAIL_RE = re.compile(r"^[^@\s]{1,64}@[^@\s]{1,190}\.[^@\s]{2,24}$")
+
+
+def _email(raw: str) -> str:
+    email = (raw or "").strip().lower()
+    if not EMAIL_RE.match(email):
+        raise HTTPException(400, "Enter a valid email address.")
+    return email
+
+
+def _check_password(password: str) -> None:
+    if len(password) < 8:
+        raise HTTPException(400, "Use at least 8 characters for your password.")
+
+
+class RegisterIn(VerifyIn):
+    code: str | None = None  # not used: sign-up by email has no code
+    email: str = Field(max_length=254)
+    password: str = Field(max_length=200)
+
+
+class PasswordLoginIn(BaseModel):
+    email: str = Field(max_length=254)
+    password: str = Field(max_length=200)
+
+
+class SetPasswordIn(BaseModel):
+    email: str = Field(max_length=254)
+    password: str = Field(max_length=200)
+    current_password: str | None = Field(default=None, max_length=200)
+
+
+async def _finish_login(user: dict, response: Response) -> None:
+    if user.get("disabled"):
+        raise HTTPException(403, "This account has been paused. Please contact the Business AI team.")
+    role = "admin" if user["phone"] in settings.admin_phones else "owner"  # ADMIN_PHONES is the single source of truth
+    await db().users.update_one({"_id": user["_id"]}, {"$set": {"last_seen_at": now(), "role": role}})
+    issue_session(response, user)
+
+
+@router.post("/auth/register")
+async def register(body: RegisterIn, request: Request, response: Response):
+    await rate_limit(f"register-ip:{client_ip(request)}", settings.otp_per_ip_per_hour, 3600, "Too many sign-ups from this network. Try again later.")
+    email = _email(body.email)
+    _check_password(body.password)
+    phone = normalise_phone(body.phone)
+    if not _allowed_country(phone):
+        raise HTTPException(400, "Please use an Indian mobile number.")
+    if phone in settings.admin_phones:
+        raise HTTPException(403, "This number logs in with the mobile code.")
+    if await db().users.find_one({"email": email}, {"_id": 1}):
+        raise HTTPException(409, "This email already has an account. Log in instead.")
+    if await db().users.find_one({"phone": phone}, {"_id": 1}) or await db().team_invites.find_one({"phone": phone, "status": "pending"}, {"_id": 1}):
+        raise HTTPException(409, "This mobile number already has an account or a team invite. Log in with the code sent to it.")
+    user, _ = await _create_user(phone, body)
+    try:
+        await db().users.update_one({"_id": user["_id"]}, {"$set": {"email": email, "password": hash_password(body.password),
+                                                                    "phone_verified": False}})
+    except DuplicateKeyError:  # the same email signed up twice at once
+        await db().users.delete_one({"_id": user["_id"]})
+        raise HTTPException(409, "This email already has an account. Log in instead.")
+    await _finish_login(user, response)
+    return {"ok": True, "new": True}
+
+
+@router.post("/auth/login")
+async def password_login(body: PasswordLoginIn, request: Request, response: Response):
+    email = (body.email or "").strip().lower()[:254]
+    await rate_limit(f"pw-ip:{client_ip(request)}", settings.otp_per_ip_per_hour, 3600, "Too many attempts from this network. Try again later.")
+    await rate_limit(f"pw:{email}", 10, 900, "Too many attempts for this email. Try again in 15 minutes.")
+    user = await db().users.find_one({"email": email})
+    if not user or not password_matches(body.password, user.get("password")):
+        raise HTTPException(400, "That email and password don't match.")
+    await _finish_login(user, response)
+    return {"ok": True, "new": False}
+
+
+@router.put("/auth/password")
+async def set_password(body: SetPasswordIn, user: dict = Depends(current_user)):
+    """Adds (or changes) email login on the account you're logged in to."""
+    email = _email(body.email)
+    _check_password(body.password)
+    if user.get("password") and not password_matches(body.current_password or "", user["password"]):
+        raise HTTPException(400, "Your current password is not right.")
+    other = await db().users.find_one({"email": email, "_id": {"$ne": user["_id"]}}, {"_id": 1})
+    if other:
+        raise HTTPException(409, "This email is already used by another account.")
+    try:
+        await db().users.update_one({"_id": user["_id"]}, {"$set": {"email": email, "password": hash_password(body.password)}})
+    except DuplicateKeyError:
+        raise HTTPException(409, "This email is already used by another account.")
+    return {"ok": True, "email": email}
 
 
 async def _claim_attempt(otp: dict) -> bool:
@@ -174,7 +273,7 @@ async def me(user: dict = Depends(current_user)):
     approvals = await db().approvals.count_documents({"ws": ws, "status": "pending"}) if role != "staff" else 0
     my_tasks = await db().tasks.count_documents({"ws": ws, "assignee_id": user["_id"], "status": "open"})
     return {
-        "user": {"id": user["_id"], "phone": user["phone"], "name": user.get("name", ""),
+        "user": {"id": user["_id"], "phone": user["phone"], "name": user.get("name", ""), "email": user.get("email"),
                  "role": "admin" if user.get("role") == "admin" and user["phone"] in settings.admin_phones else "owner",
                  "plan": owner.get("plan", "free"), "effective_plan": effective, "plan_name": plans.PLANS[effective]["name"],
                  "plan_source": plans.plan_source(owner),
