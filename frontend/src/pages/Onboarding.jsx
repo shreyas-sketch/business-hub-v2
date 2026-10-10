@@ -179,11 +179,14 @@ export default function Onboarding() {
           {step === 1 && <>
             <h1 style={{ fontSize: 36 }}>What do you <em>sell</em>?</h1>
             <p className="sub">Add your main products or services. Prices are optional — leave them empty if you quote case by case.</p>
+            <div className="grid3" style={{ gridTemplateColumns: "2fr 1fr 1fr", marginBottom: -8 }} aria-hidden="true">
+              <span className="label">Product or service</span><span className="label">Price in ₹ (optional)</span><span className="label">Unit (optional)</span>
+            </div>
             {b.offers.map((o, i) => (
               <div key={i} className="grid3" style={{ gridTemplateColumns: "2fr 1fr 1fr" }}>
                 <input className="input" value={o.name} onChange={setOffer(i, "name")} placeholder={i === 0 ? "Modular kitchen" : "Another product or service"} aria-label="Product or service" />
-                <input className="input" value={o.price} onChange={setOffer(i, "price")} placeholder="₹ price (optional)" aria-label="Price" />
-                <input className="input" value={o.unit} onChange={setOffer(i, "unit")} placeholder="per sq ft, onwards…" aria-label="Unit" />
+                <input className="input" value={o.price} onChange={setOffer(i, "price")} placeholder={i === 0 ? "1,500" : "Price"} aria-label="Price in rupees" />
+                <input className="input" value={o.unit} onChange={setOffer(i, "unit")} placeholder={i === 0 ? "per sq ft" : "Unit"} aria-label="Unit" />
               </div>
             ))}
             {b.offers.length < 8 && <button className="btn sm ghost" style={{ justifySelf: "start" }} onClick={() => setB({ ...b, offers: [...b.offers, { name: "", price: "", unit: "" }] })}>Add another</button>}
