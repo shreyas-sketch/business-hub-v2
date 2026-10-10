@@ -46,10 +46,9 @@ function DraftBox({ onDraft }) {
     <div className="panel flat">
       <span className="label">Draft from a voice note or a few lines</span>
       <textarea className="textarea" maxLength={6000} value={brief} onChange={(e) => setBrief(e.target.value)} aria-label="What the quotation is for"
-        placeholder="Kitchen for Mr Shah, Thane: 10 ft modular kitchen, chimney, installation included" />
+        placeholder="Who it is for and what they want: items, sizes, quantities and any rates you know" />
       <div className="rb-voice">
         <VoiceNote purpose="quote" onText={(t) => setBrief((b) => (b.trim() ? `${b.trim()}\n${t}` : t))} />
-        {me.features?.voice_sop && <span className="small muted">Say who it's for and what they want — items, sizes, quantities and any rates you know. Up to 5 minutes; the voice note uses one AI run.</span>}
       </div>
       <FormError msg={err} />
       <div className="row">
